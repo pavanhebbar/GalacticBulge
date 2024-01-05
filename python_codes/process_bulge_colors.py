@@ -1,4 +1,13 @@
-"""Python code to classify X-ray sources by color."""
+"""Python code to classify X-ray sources by color.
+
+Functionalities needed.
+
+1. Line, step, scatter and histogram and kde plots
+2. Plot net counts, bg/net and S/N ratio
+3. Process detectors seperately and combine colors only optional
+4. Cross-match 4XMM and CSC sources.
+5. Compare with Haley et al. sources.
+"""
 
 
 import copy
@@ -72,7 +81,7 @@ def set_plotparams(plottype):
 def plotline_scatter(xdatas, ydatas, pl_types=None, axs=None, xlabel=None,
                      ylabel=None, pl_labels=None, styles=None, colors=None,
                      yscale='linear', title=None, ylim=None):
-    """Plot line and scatter plots."""
+    """Plot line, step and scatter plots."""
     if pl_types is None:
         pl_types = ['line']*len(ydatas)
     if axs is None:
@@ -92,7 +101,7 @@ def plotline_scatter(xdatas, ydatas, pl_types=None, axs=None, xlabel=None,
             colors = (['000000', '00287c', '89003e', '6e5700', '008f75',
                       'b57de9', 'ff9468', '9cee81', '00d2ff'] *
                       (int(len(ydatas/9)+1)))
- 
+
     axs.set_title(title)
     print(ylim)
     if ylim is not None:
@@ -110,6 +119,9 @@ def plotline_scatter(xdatas, ydatas, pl_types=None, axs=None, xlabel=None,
                 styles[i] = 'o'
             axs.scatter(xdatas[i], ydatas[i], marker=styles[i],
                         label=pl_labels[i], color=colors[i])
+        elif pl_type == 'step':
+            plt.step(xdatas[i], ydatas[i], where='mid', linestyle=styles[i],
+                     label=pl_labels[i], colors=colors[i])
         else:
             raise ValueError("pl_type can only be 'line' or 'scatter'")
     axs.legend()
@@ -463,6 +475,7 @@ def join_lists_3d(list1_2d, list2_2d, list3_2d=None):
             joined_list.append([row, list2_2d[i], list3_2d[i]])
     return joined_list
 
+
 def join_string_lists(list1_1d, list2_1d):
     """Outer product like addition of 2 strings"""
     joined_list = []
@@ -497,7 +510,7 @@ def plot_spec_summary(sim_src_spec_arr, sim_bg_spec_arr, obs_src_spec_arr,
         det_mask_obs_arr = [None]*len(obs_src_spec_arr)
     if det_names is None:
         det_names = ['']*len(sim_src_spec_arr)
-    
+
     for i, sim_src_specs in enumerate(sim_src_spec_arr):
         (sim_norm_spec, sim_netcounts, sim_bgcounts, sim_detmask,
          en_lowindex, en_highindex) = get_summary_det(
@@ -531,7 +544,7 @@ def plot_spec_summary(sim_src_spec_arr, sim_bg_spec_arr, obs_src_spec_arr,
 
     if plot is False:
         return (norm_specs, netcounts, bgcounts, ebins_refined)
-    
+
     for i, norm_spec_sim_obs in enumerate(norm_specs_forplot):
         plotline_scatter([ebins_refined[i], ebins_refined[i]],
                          norm_spec_sim_obs, xlabel='Energy (keV)',
@@ -539,8 +552,8 @@ def plot_spec_summary(sim_src_spec_arr, sim_bg_spec_arr, obs_src_spec_arr,
                          pl_labels=['Simulated ' + det_names[i] + ' spectra',
                                     'Observed ' + det_names[i] + ' spectra'],
                          title=('Simulated and Observed ' + det_names[i] +
-                                ' spectra' ))
-    
+                                ' spectra'))
+
     hist1D_joined_list = join_lists_3d(norm_specs_forplot,
                                        bg_net_ratio_forplot,
                                        s_to_n_ratio_forplot)
@@ -550,7 +563,7 @@ def plot_spec_summary(sim_src_spec_arr, sim_bg_spec_arr, obs_src_spec_arr,
         title='1D histograms of net and background counts',
         xlabel_arr=join_string_lists(
             ['log (Net counts)', 'log (Bg counts/Net counts)',
-             r'log(Net counts/(Net counts + Bg counts)$^{0.5}$'], det_names)
+             r'log(Net counts/(Net counts + Bg counts)$^{0.5}$'], det_names),
         ylabel_arr=[['# density per bin']*3]*len(norm_specs_forplot),
         pl_labels_arr=[
             ['Simulated MSPs', 'Observed sources']*3]*len(norm_specs_forplot))
