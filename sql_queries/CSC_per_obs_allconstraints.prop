@@ -1,0 +1,33 @@
+#CSCview Query
+#Mon Jan 15 13:25:02 MST 2024
+prop.value11=0
+prop.value10=4
+pos.queryLimSen=true
+sort.properties=separation,master_source.name,observation_source.gti_obs
+prop.value9=1
+prop.value8=NONE
+prop.value7=ACIS
+prop.value6=8
+qb.maxRows=all
+prop.properties=master_source.acis_time,master_source.significance,master_source.likelihood_class,stack_source.flux_significance_h,master_source.hard_hm,master_source.hard_hm,observation_source.conf_code,observation_source.instrument,observation_source.grating,observation_source.flux_significance_h,observation_source.edge_code,observation_source.flux_aper_h
+prop.value4=0.90
+prop.value3=3
+prop.operators=>\=,>\=,\=,>\=,>\=,NULL,<,\=,\=,>\=,<,>\=
+prop.value2=TRUE
+pos.cone.mode=name
+prop.value1=3
+prop.value0=500000
+prop.logical=AND,AND,AND,AND,OR,AND,AND,AND,AND,AND,AND,
+rs.properties=separation,master_source.name,observation_source.obsid,observation_source.obi,observation_source.region_id,observation_source.theta,observation_source.gti_obs,observation_source.gti_elapse,master_source.ra,master_source.dec,master_source.gal_l,master_source.gal_b,master_source.err_ellipse_r0,master_source.err_ellipse_r1,master_source.err_ellipse_ang,master_source.significance,observation_source.flux_significance_h,master_source.likelihood_class,master_source.conf_flag,master_source.sat_src_flag,master_source.streak_src_flag,master_source.var_flag,master_source.var_inter_hard_flag,master_source.major_axis_h,master_source.major_axis_lolim_h,master_source.major_axis_hilim_h,master_source.minor_axis_h,master_source.minor_axis_lolim_h,master_source.minor_axis_hilim_h,master_source.pos_angle_h,master_source.pos_angle_lolim_h,master_source.pos_angle_hilim_h,master_source.src_area_h,master_source.flux_aper_h,master_source.flux_aper_lolim_h,master_source.flux_aper_hilim_h,observation_source.flux_aper_h,observation_source.flux_aper_lolim_h,observation_source.flux_aper_hilim_h,master_source.hard_hm,master_source.hard_hm_lolim,master_source.hard_hm_hilim,master_source.var_inter_hard_prob_hm,master_source.var_inter_hard_sigma_hm,master_source.var_intra_index_h,master_source.var_intra_prob_h,master_source.ks_intra_prob_h,master_source.kp_intra_prob_h,master_source.var_inter_index_h,master_source.var_inter_prob_h,master_source.var_inter_sigma_h,master_source.acis_time
+cscview_version=1.3.10
+qb.catalogRelease=2.0
+qp.mode=form
+pos.cone.units=arcmin
+prop.closedParen=),),),),),)),),),),),),)
+pos.cone.radius=30
+pos.cone.name=Sgr A*
+pos.type=cone
+sort.directions=ascending,ascending,ascending
+prop.openParen=(,(,(,(,((,(,(,(,(,(,(,(
+qb.distinct=true
+pos.cone.service=Simbad/NED

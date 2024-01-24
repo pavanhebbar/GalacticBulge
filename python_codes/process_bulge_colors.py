@@ -202,7 +202,6 @@ def plot_subplots(numrows, numcols, xdatas_arr, ydatas_arr, title=None,
                   bins_arr=None, cbar_labels=None, yscale_arr=None,
                   ylim_arr=None, colors_arr=None):
     """Plot subplots"""
-    print(ylim_arr)
     if subp_types_arr is None:
         subp_types_arr = [['linescatter']*numcols]*numrows
     if pl_labels_arr is None:
@@ -494,7 +493,12 @@ def join_string_lists(list1_1d, list2_1d):
 def plot_spec_summary(sim_src_spec_arr, sim_bg_spec_arr, obs_src_spec_arr,
                       obs_bg_spec_arr, ebins_arr, det_names=None, e_range=None,
                       plot=True, det_mask_sim_arr=None, det_mask_obs_arr=None):
-    """Plot spec summary."""
+    """Plot spec summary.
+
+    1. Mean normalized spectra (also add error fn.)
+    2. Net count, Net count/Bg counts, signal-to-noise ratio plots for
+       each det.
+    """
     norm_specs = []
     netcounts = []
     bgcounts = []
@@ -578,7 +582,7 @@ def get_enbins_centres(resp_file):
     emin = energy_bins['E_MIN']
     emax = energy_bins['E_MAX']
     e_centres = 0.5*(emin + emax)
-    return emin, emax, e_centres
+    return np.append(emin, emax[-1]), e_centres
 
 
 def get_line_cont_counts(src_spec, bg_spec, ebins, net_spec=None,
@@ -730,32 +734,24 @@ def bin_colors_withprop(colors, prop_list, prop_listnames, obs_colors,
         median_colors_withprop.append(median_colors)
         if plot:
             plot_subplots(
-                2, 2, [[[prop_list[i]], [0.5*(prop_binslist[i][1:] +
-                                              prop_binslist[i][:-1]),
-                                         0.5*(prop_binslist[i][1:] +
-                                              prop_binslist[i][:-1])]],
-                       [[prop_list[i], 0.5*(prop_binslist[i][1:] +
-                                            prop_binslist[i][:-1]),
-                         0.5*(prop_binslist[i][1:] + prop_binslist[i][:-1])],
-                        [obs_props[i], 0.5*(prop_binslist[i][1:] +
-                                            prop_binslist[i][:-1]),
-                         0.5*(prop_binslist[i][1:] + prop_binslist[i][:-1])]]],
-                [[[colors], [mean_colors, median_colors]],
-                 [[colors, mean_colors+colors_std, mean_colors+3*colors_std],
-                  [obs_colors, mean_colors+colors_std, mean_colors+colors_std]]
-                 ],
-                subp_types_arr=[['linescatter', 'linescatter'],
-                                ['linescatter', 'linescatter']],
-                pl_types_arr=[[['scatter'], ['line', 'line']],
-                              [['scatter', 'line', 'line'],
-                               ['scatter', 'line', 'line']]],
-                xlabel_arr=[[prop_listnames[i], prop_listnames[i]+' bins'],
-                            [prop_listnames[i], prop_listnames[i]]],
-                ylabel_arr=[['Colors', 'Mean/median color'],
-                            ['Simulated sources', 'Observed colors']],
-                pl_labels_arr=[[None, ['Mean color', 'Median color']],
-                               [None, ['Colors', 'Mean + 1.0std',
-                                       'Mean + 3.0std']]],
+                1, 2, [[prop_list[i], 0.5*(prop_binslist[i][1:] +
+                                           prop_binslist[i][:-1]),
+                        0.5*(prop_binslist[i][1:] + prop_binslist[i][:-1])],
+                       [obs_props[i], 0.5*(prop_binslist[i][1:] +
+                                           prop_binslist[i][:-1]),
+                        0.5*(prop_binslist[i][1:] + prop_binslist[i][:-1])]],
+                [[colors, mean_colors + 2*colors_std,
+                  mean_colors - 2*colors_std],
+                 [obs_colors, mean_colors + 2*colors_std,
+                  mean_colors + 2*colors_std]],
+                subp_types_arr=[['linescatter', 'linescatter']],
+                pl_types_arr=[['scatter', 'step', 'step'],
+                              ['scatter', 'step', 'step']],
+                xlabel_arr=[prop_listnames[i], prop_listnames[i]],
+                ylabel_arr=['Simulated source colors',
+                            'Observed source colors'],
+                pl_labels_arr=[['Colors', 'Mean + 2.0std', 'Mean - 2.0std'],
+                               ['Colors', 'Mean + 2.0std', 'Mean - 2.0std']],
                 title='Color vs ' + prop_listnames[i] + ' for ' + plot_det,
                 ylim_arr=[[(0, 5), (0, 5)], [(0, 5), (0, 5)]])
     return (prop_binslist, mean_colors_withprop, std_colors_withprop,
@@ -873,90 +869,68 @@ def combine_wantedprops(pn_dict, mos_dict, pn_mask, mos_mask):
             bg_counts_aroundfe/net_counts_aroundfe, combined_colors)
 
 
-def process_given_sim_nhtype(nhtype, range_fe=None):
-    """Process a given type of NH"""
-    pn_emin, pn_emax, pn_ecentres = get_enbins_centres(
-        '../XMM_responses/PN/epn_bu23_dY9.rmf.gz')
-    pn_ebins = np.append(pn_emin, pn_emax[-1])
-    mos_emin, mos_emax, mos_ecentres = get_enbins_centres(
-        '../XMM_responses/MOS_5eV/m1_e10_im_p0_c.rmf')
-    mos_ebins = np.append(mos_emin, mos_emax[-1])
-    print('Loaded Energy bins')
-    if nhtype == 'high':
-        ([sim_pn_mask, sim_mos_mask], [sim_pn_specs, sim_mos_specs],
-         [sim_pn_bgs, sim_mos_bgs]) = load_sim_xmmspec(
-             '../data/sim_msps_highNH_PN_MOS/', background=True,
-             basename='msp_highNH_')
-        (source_nums, [obs_pn_mask, obs_pn_specs, obs_pn_bgs],
-         [obs_mos_mask, obs_mos_specs, obs_mos_bgs]) = load_xmmspec_observed(
-             '../data/Galactic_highNH_combinedXMM/', background=True)
-    elif nhtype == 'mid':
-        ([sim_pn_mask, sim_mos_mask], [sim_pn_specs, sim_mos_specs],
-         [sim_pn_bgs, sim_mos_bgs]) = load_sim_xmmspec(
-             '../data/sim_msps_midNH_PN_MOS/', background=True,
-             basename='msp_midNH_')
-        (source_nums, [obs_pn_mask, obs_pn_specs, obs_pn_bgs],
-         [obs_mos_mask, obs_mos_specs, obs_mos_bgs]) = load_xmmspec_observed(
-             '../data/Galactic_midNH_combinedXMM/', background=True)
-    elif nhtype == 'low':
-        ([sim_pn_mask, sim_mos_mask], [sim_pn_specs, sim_mos_specs],
-         [sim_pn_bgs, sim_mos_bgs]) = load_sim_xmmspec(
-             '../data/sim_msps_lowNH_PN_MOS/', background=True,
-             basename='msp_lowNH_')
-        (source_nums, [obs_pn_mask, obs_pn_specs, obs_pn_bgs],
-         [obs_mos_mask, obs_mos_specs, obs_mos_bgs]) = load_xmmspec_observed(
-             '../data/Galactic_midNH_combinedXMM/', background=True)
-    else:
-        print('No such type of NH')
-    print('Loaded Simulated and observed data')
-    sim_pn_dict, obs_pn_dict = process_singledet(
-        pn_ebins, sim_pn_specs, sim_pn_bgs, sim_pn_mask, det_name='PN',
-        det_obs_ebins=pn_ebins, det_obs_srcspecs=obs_pn_specs,
-        det_obs_bgspecs=obs_pn_bgs, det_obsmask=obs_pn_mask, range_fe=range_fe)
-    sim_mos_dict, obs_mos_dict = process_singledet(
-        mos_ebins, sim_mos_specs, sim_mos_bgs, sim_mos_mask, det_name='MOS',
-        det_obs_ebins=mos_ebins, det_obs_srcspecs=obs_mos_specs,
-        det_obs_bgspecs=obs_mos_bgs, det_obsmask=obs_mos_mask,
-        range_fe=range_fe)
-    print('Processed each detectors individually')
-    (sim_netcounts, sim_bgratio, sim_netcounts_aroundfe, sim_bgratio_aroundfe,
-     sim_combined_colors) = combine_wantedprops(sim_pn_dict, sim_mos_dict,
-                                                sim_pn_mask, sim_mos_mask)
-    (obs_netcounts, obs_bgratio, obs_netcounts_aroundfe, obs_bgratio_aroundfe,
-     obs_combined_colors) = combine_wantedprops(obs_pn_dict, obs_mos_dict,
-                                                obs_pn_mask, obs_mos_mask)
-    netcount_bins = 10**(np.linspace(1, 5, 21))
-    netcount_aroundfe_bins = 10**(np.linspace(0, 4, 21))
-    bg_net_ratio_bins = 10**(np.linspace(-2, 1, 21))
-    bg_net_ratio_aroundfe_bins = 10**(np.linspace(-2, 1, 21))
-    (mean_colors_withprop, std_colors_withprop,
-     median_colors_withprop) = bin_colors_withprop(
-        sim_combined_colors, [sim_netcounts, sim_bgratio,
-                              sim_netcounts_aroundfe, sim_bgratio_aroundfe],
-        ['Combined net counts', 'Combined BG/Net count ratio',
-         'Combined net counts around Fe',
-         'Combined Bg/Net count ratio around Fe'],
-        obs_combined_colors, [obs_netcounts, obs_bgratio,
-                              obs_netcounts_aroundfe, obs_bgratio_aroundfe],
-        prop_binslist=[netcount_bins, bg_net_ratio_bins,
-                       netcount_aroundfe_bins, bg_net_ratio_aroundfe_bins],
-        plot=True, plot_det='PN+MOS')[1:]
-    combined_dict = {'individual_dicts': [sim_pn_dict, sim_mos_dict,
-                                          obs_pn_dict, obs_mos_dict],
-                     'spectra': [sim_pn_specs, sim_mos_specs, obs_pn_specs,
-                                 obs_mos_specs],
-                     'bg_spectra': [sim_pn_bgs, sim_mos_bgs, obs_pn_bgs,
-                                    obs_mos_bgs],
-                     'combined_counts': [sim_netcounts, sim_netcounts_aroundfe,
-                                         obs_netcounts,
-                                         obs_netcounts_aroundfe],
-                     'combined_bgratios': [sim_bgratio, sim_bgratio_aroundfe,
-                                           obs_bgratio, obs_bgratio_aroundfe],
-                     'colors': [sim_combined_colors, obs_combined_colors],
-                     'prop_bins': [netcount_bins, netcount_aroundfe_bins,
-                                   bg_net_ratio_bins,
-                                   bg_net_ratio_aroundfe_bins],
-                     'mean_std_colors_withprop': [mean_colors_withprop,
-                                                  std_colors_withprop,
-                                                  median_colors_withprop]}
-    return source_nums, combined_dict
+def process_alldata(response_paths, sim_spec_paths, obs_spec_paths,
+                    range_fe=None, range_cont1=None, range_cont2=None):
+    """Main function to process the entire dataset."""
+    det_enbins_arr = []
+    det_ecenters_arr = []
+    sim_srcspec_arr = []
+    sim_bgspec_arr = []
+    sim_mask_arr = []
+    obs_srcspec_arr = []
+    obs_bgspec_arr = []
+    obs_mask_arr = []
+    obs_src_nums = []
+    det_names = ['XMM EPIC-PN', 'XMM EPIC-MOS', 'CHANDRA ACIS']
+    if range_fe is None:
+        range_fe = [6.2, 7.2]
+    if range_cont1 is None:
+        range_fe = [5.8, 6.2]
+    if range_cont2 is None:
+        range_fe = [7.2, 7.6]
+    for i, response in enumerate(response_paths):
+        # Load energy bins
+        det_ebins, det_ecenters = get_enbins_centres(response)
+        det_enbins_arr.append(det_ebins)
+        det_ecenters_arr.append(det_ecenters)
+        # Load spectra
+        if i == 0:
+            ([sim1_mask, sim2_mask], [sim1_specs, sim2_specs],
+             [sim1_bgs, sim2_bgs]) = load_sim_xmmspec(
+                sim_spec_paths[i], background=True, basename='msp_highNH_')
+            (source_nums, [obs1_mask, obs1_specs, obs1_bgs],
+             [obs2_mask, obs2_specs, obs2_bgs]) = load_xmmspec_observed(
+                obs_spec_paths[i], background=True)
+            sim_srcspec_arr.append(sim1_specs)
+            sim_srcspec_arr.append(sim2_specs)
+            sim_bgspec_arr.append(sim1_bgs)
+            sim_bgspec_arr.append(sim2_bgs)
+            sim_mask_arr.append(sim1_mask)
+            sim_mask_arr.append(sim2_mask)
+            obs_srcspec_arr.append(obs1_specs)
+            obs_srcspec_arr.append(obs2_specs)
+            obs_bgspec_arr.append(obs1_bgs)
+            obs_bgspec_arr.append(obs2_bgs)
+            obs_mask_arr.append(obs1_mask)
+            obs_mask_arr.append(obs2_mask)
+            obs_src_nums.append(source_nums)
+        elif i == 2:
+            sim_specs, sim_bgs = load_chandraspec_sim(
+                sim_spec_paths[i], background=True, num_sim=10000,
+                basename='msp_highNH_')
+            src_names, obs_specs, obs_bgs = load_chandraspec_obs(obs_spec_paths) 
+            sim_mask = np.ones(len(sim_specs), dtype=bool)
+            obs_mask = np.ones(len(obs_specs), dtype=bool)
+            sim_srcspec_arr.append(sim_specs)
+            sim_bgspec_arr.append(sim_bgs)
+            sim_mask_arr.append(sim_mask)
+            obs_srcspec_arr.append(obs_specs)
+            obs_bgspec_arr.append(obs_bgspec_arr)
+            obs_mask_arr.append(obs_mask)
+            obs_src_nums.append(src_names)
+        else:
+            pass
+    # Plot spec summary
+    norm_specs, netcounts, bgcounts, ebins_refined = plot_spec_summary(
+        sim_srcspec_arr, sim_bgspec_arr, obs_srcspec_arr, obs_bgspec_arr,
+        det_enbins_arr, det_names, [2, 10], True, sim_mask_arr, obs_mask_arr)
