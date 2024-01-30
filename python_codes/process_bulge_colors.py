@@ -108,7 +108,7 @@ def plotline_scatter(xdatas, ydatas, pl_types=None, axs=None, xlabel=None,
         styles = ['-']*len(ydatas)
     if colors is None:
         if len(ydatas) <= 4:
-            colors = ['#000000', '#004488', '#bb5566', '#ddaa33']
+            colors = ['#004488', '#ddaa33', '#bb5566', '#000000']
         elif len(ydatas) <= 9:
             colors = ['#000000', '#00287c', '#89003e', '#6e5700', '#008f75',
                       'b57de9', 'ff9468', '9cee81', '00d2ff']
@@ -135,10 +135,11 @@ def plotline_scatter(xdatas, ydatas, pl_types=None, axs=None, xlabel=None,
             axs.scatter(xdatas[i], ydatas[i], marker=styles[i],
                         label=pl_labels[i], color=colors[i])
         elif pl_type == 'step':
-            plt.step(xdatas[i], ydatas[i], where='mid', linestyle=styles[i],
-                     label=pl_labels[i], colors=colors[i])
+            axs.step(xdatas[i], ydatas[i], where='mid', linestyle=styles[i],
+                     label=pl_labels[i], color=colors[i])
         else:
-            raise ValueError("pl_type can only be 'line' or 'scatter'")
+            raise ValueError("pl_type can only be 'line' or 'scatter'. Got " +
+                             pl_type)
     axs.legend()
     return axs
 
@@ -155,7 +156,7 @@ def plothist(data_arr, data2=None, axs=None, bins=None, xlabel=None,
         pl_labels = [None]*len(data_arr)
     if colors is None:
         if len(data_arr) <= 4:
-            colors = ['#000000', '#004488', '#bb5566', '#ddaa33']
+            colors = ['#004488', '#ddaa33', '#bb5566', '#000000']
         elif len(data_arr) <= 9:
             colors = ['#000000', '#00287c', '#89003e', '#6e5700', '#008f75',
                       'b57de9', 'ff9468', '9cee81', '00d2ff']
@@ -254,7 +255,9 @@ def plot_subplots(numrows, numcols, xdatas_arr, ydatas_arr, title=None,
     # Calling the figure and axes
     fig, axes = plt.subplots(numrows, numcols)
     fig.suptitle(title)
-    axes.reshape(numrows, numcols)
+    axes = axes.reshape(numrows, numcols)
+    plt.rcParams["legend.fontsize"] = (
+        float(plt.rcParams["legend.fontsize"]) - 5*(numcols - 1))
 
     for i in range(numrows):
         for j in range(numcols):
@@ -275,6 +278,8 @@ def plot_subplots(numrows, numcols, xdatas_arr, ydatas_arr, title=None,
             else:
                 print('subplot type can be linescatter or hist')
     plt.tight_layout()
+    plt.rcParams["legend.fontsize"] = (
+        float(plt.rcParams["legend.fontsize"]) + 5*(numcols - 1))
     return fig, axes
 
 
@@ -701,32 +706,30 @@ def bin_colors_withprop(colors, prop_list, prop_listnames, obs_colors,
         median_colors_withprop.append(median_colors)
         if plot:
             plot_subplots(
-                1, 2, [[prop_list[i], 0.5*(prop_binslist[i][1:] +
-                                           prop_binslist[i][:-1]),
-                        0.5*(prop_binslist[i][1:] + prop_binslist[i][:-1])],
-                       [obs_props[i], 0.5*(prop_binslist[i][1:] +
-                                           prop_binslist[i][:-1]),
-                        0.5*(prop_binslist[i][1:] + prop_binslist[i][:-1])]],
-                [[colors, mean_colors + 2*colors_std,
+                1, 2, [[[prop_list[i], get_bincenters(prop_binslist[i]),
+                        get_bincenters(prop_binslist[i])],
+                       [obs_props[i], get_bincenters(prop_binslist[i]),
+                        get_bincenters(prop_binslist[i])]]],
+                [[[colors, mean_colors + 2*colors_std,
                   mean_colors - 2*colors_std],
                  [obs_colors, mean_colors + 2*colors_std,
-                  mean_colors + 2*colors_std]],
+                  mean_colors - 2*colors_std]]],
                 subp_types_arr=[['linescatter', 'linescatter']],
-                pl_types_arr=[['scatter', 'step', 'step'],
-                              ['scatter', 'step', 'step']],
-                xlabel_arr=[prop_listnames[i], prop_listnames[i]],
-                ylabel_arr=['Simulated source colors',
-                            'Observed source colors'],
-                pl_labels_arr=[['Colors', 'Mean + 2.0std', 'Mean - 2.0std'],
-                               ['Colors', 'Mean + 2.0std', 'Mean - 2.0std']],
+                pl_types_arr=[[['scatter', 'step', 'step'],
+                              ['scatter', 'step', 'step']]],
+                xlabel_arr=[[prop_listnames[i], prop_listnames[i]]],
+                ylabel_arr=[['Simulated source colors',
+                            'Observed source colors']],
+                pl_labels_arr=[[['Colors', 'Mean + 2.0std', 'Mean - 2.0std'],
+                                ['Colors', 'Mean + 2.0std', 'Mean - 2.0std']]],
                 title='Color vs ' + prop_listnames[i] + ' for ' + plot_det,
                 ylim_arr=[[(0, 5), (0, 5)], [(0, 5), (0, 5)]])
     return (prop_binslist, mean_colors_withprop, std_colors_withprop,
             median_colors_withprop)
 
 
-def load_alldata(response_paths, sim_spec_paths, obs_spec_paths,
-                 range_fe=None, range_cont1=None, range_cont2=None):
+def load_alldata(response_paths, sim_spec_paths, obs_spec_paths, range_fe=None,
+                 range_cont1=None, range_cont2=None, en_range=None):
     """Main function to process the entire dataset."""
     det_enbins_arr = []
     det_ecenters_arr = []
@@ -744,6 +747,8 @@ def load_alldata(response_paths, sim_spec_paths, obs_spec_paths,
         range_fe = [5.8, 6.2]
     if range_cont2 is None:
         range_fe = [7.2, 7.6]
+    if en_range is None:
+        en_range = [2, 10]
     for i, response in enumerate(response_paths):
         # Load energy bins
         det_ebins, det_ecenters = get_enbins_centres(response)
@@ -791,12 +796,13 @@ def load_alldata(response_paths, sim_spec_paths, obs_spec_paths,
     (norm_specs, netcounts, bgcounts, ebins_lowhigh_indices, det_mask_sim,
      det_mask_obs) = plot_spec_summary(
         sim_srcspec_arr, sim_bgspec_arr, obs_srcspec_arr, obs_bgspec_arr,
-        det_enbins_arr, det_names, [2, 10], True, sim_mask_arr, obs_mask_arr)
+        det_enbins_arr, det_names, en_range, True, sim_mask_arr, obs_mask_arr)
     spec_summary = {'ebins': [det_enbins_arr, det_ecenters_arr],
                     'elowhigh': ebins_lowhigh_indices,
                     'specs': [sim_srcspec_arr, sim_bgspec_arr, obs_srcspec_arr,
                               obs_bgspec_arr],
                     'spec_masks': [det_mask_sim, det_mask_obs],
+                    'src_nums': obs_src_nums,
                     'norm_specs': norm_specs,
                     'counts': [netcounts, bgcounts]}
     return spec_summary
@@ -889,7 +895,7 @@ def getcolor_prop_alldet(spec_summary, compare_det=False):
             specs[1][i][spec_masks[0][i]], counts[0][i][0][spec_masks[0][i]],
             counts[1][i][0][spec_masks[0][i]], specs[2][i][spec_masks[1][i]],
             specs[3][i][spec_masks[1][i]], counts[0][i][1][spec_masks[1][i]],
-            counts[1][i][1][spec_masks[1][i]], det_name=det_names,
+            counts[1][i][1][spec_masks[1][i]], det_name=det_names[i],
             plot=plot_det)
         sim_colors_dict_arr.append(sim_colors_dict)
         obs_colors_dict_arr.append(obs_colors_dict)
@@ -920,45 +926,48 @@ def getcolor_prop_alldet(spec_summary, compare_det=False):
                     get_bincenters(sim_colors_dict_arr[2]['prop_bins'][i])]]],
                 [[[
                     sim_colors_dict_arr[0]['colors'],
-                    (sim_colors_dict_arr[0]['color_stat'][1] +
-                     2*sim_colors_dict_arr[0]['color_stat'][2])
-                    (sim_colors_dict_arr[0]['color_stat'][1] -
-                     2*sim_colors_dict_arr[0]['color_stat'][2])], [
+                    (sim_colors_dict_arr[0]['color_stat'][1][i] +
+                     2*sim_colors_dict_arr[0]['color_stat'][2][i]),
+                    (sim_colors_dict_arr[0]['color_stat'][1][i] -
+                     2*sim_colors_dict_arr[0]['color_stat'][2][i])], [
                     obs_colors_dict_arr[0]['colors'],
-                    (sim_colors_dict_arr[0]['color_stat'][1] +
-                     2*sim_colors_dict_arr[0]['color_stat'][2])
-                    (sim_colors_dict_arr[0]['color_stat'][1] -
-                     2*sim_colors_dict_arr[0]['color_stat'][2])]],
+                    (sim_colors_dict_arr[0]['color_stat'][1][i] +
+                     2*sim_colors_dict_arr[0]['color_stat'][2][i]),
+                    (sim_colors_dict_arr[0]['color_stat'][1][i] -
+                     2*sim_colors_dict_arr[0]['color_stat'][2][i])]],
                  [[
                     sim_colors_dict_arr[1]['colors'],
-                    (sim_colors_dict_arr[1]['color_stat'][1] +
-                     2*sim_colors_dict_arr[1]['color_stat'][2])
-                    (sim_colors_dict_arr[1]['color_stat'][1] -
-                     2*sim_colors_dict_arr[1]['color_stat'][2])], [
+                    (sim_colors_dict_arr[1]['color_stat'][1][i] +
+                     2*sim_colors_dict_arr[1]['color_stat'][2][i]),
+                    (sim_colors_dict_arr[1]['color_stat'][1][i] -
+                     2*sim_colors_dict_arr[1]['color_stat'][2][i])], [
                     obs_colors_dict_arr[1]['colors'],
-                    (sim_colors_dict_arr[1]['color_stat'][1] +
-                     2*sim_colors_dict_arr[1]['color_stat'][2])
-                    (sim_colors_dict_arr[1]['color_stat'][1] -
-                     2*sim_colors_dict_arr[1]['color_stat'][2])]],
+                    (sim_colors_dict_arr[1]['color_stat'][1][i] +
+                     2*sim_colors_dict_arr[1]['color_stat'][2][i]),
+                    (sim_colors_dict_arr[1]['color_stat'][1][i] -
+                     2*sim_colors_dict_arr[1]['color_stat'][2][i])]],
                  [[
                     sim_colors_dict_arr[2]['colors'],
-                    (sim_colors_dict_arr[2]['color_stat'][1] +
-                     2*sim_colors_dict_arr[2]['color_stat'][2])
-                    (sim_colors_dict_arr[2]['color_stat'][1] -
-                     2*sim_colors_dict_arr[2]['color_stat'][2])], [
+                    (sim_colors_dict_arr[2]['color_stat'][1][i] +
+                     2*sim_colors_dict_arr[2]['color_stat'][2][i]),
+                    (sim_colors_dict_arr[2]['color_stat'][1][i] -
+                     2*sim_colors_dict_arr[2]['color_stat'][2][i])], [
                     obs_colors_dict_arr[2]['colors'],
-                    (sim_colors_dict_arr[2]['color_stat'][1] +
-                     2*sim_colors_dict_arr[2]['color_stat'][2])
-                    (sim_colors_dict_arr[2]['color_stat'][1] -
-                     2*sim_colors_dict_arr[2]['color_stat'][2])]]],
+                    (sim_colors_dict_arr[2]['color_stat'][1][i] +
+                     2*sim_colors_dict_arr[2]['color_stat'][2][i]),
+                    (sim_colors_dict_arr[2]['color_stat'][1][i] -
+                     2*sim_colors_dict_arr[2]['color_stat'][2][i])]]],
                 subp_types_arr=[['linescatter']*2]*3,
-                pl_types_arr=[[['scatter', 'line', 'line']]*2]*3,
-                xlabel_arr=join_string_lists(prop_names, det_names),
+                pl_types_arr=[[['scatter', 'step', 'step']]*2]*3,
+                xlabel_arr=join_string_lists(
+                    ['Simulated ' + prop_names[i],
+                     'Observed ' + prop_names[i]], det_names),
                 ylabel_arr=[['Simulated source colors',
                              'Observed source colors']]*3,
                 pl_labels_arr=[[['Colors', r'Median + 2.0$\sigma$',
                                r'Median - 2.0$\sigma$']]*2]*3,
                 ylim_arr=[[(0, 5)]*2]*3)
+    return sim_colors_dict_arr, obs_colors_dict_arr
 
 
 def process_singledet1(det_ebins, det_srcspecs, det_bgspecs, det_mask,
