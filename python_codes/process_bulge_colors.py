@@ -879,7 +879,10 @@ def get_bincenters(bins):
 
 
 def getcolor_prop_alldet(spec_summary, compare_det=False):
-    """Get colors in all detectors and plot relevant figure."""
+    """Get colors in all detectors and plot relevant figure.
+
+    Spectra and values will be already masked.
+    """
     ebins_arr = spec_summary['ebins'][0]
     specs = spec_summary['specs']
     spec_masks = spec_summary['spec_masks']
@@ -970,73 +973,50 @@ def getcolor_prop_alldet(spec_summary, compare_det=False):
     return sim_colors_dict_arr, obs_colors_dict_arr
 
 
-def process_singledet1(det_ebins, det_srcspecs, det_bgspecs, det_mask,
-                       det_name, det_obs_ebins=None, det_obs_srcspecs=None,
-                       det_obs_bgspecs=None, det_obsmask=None, range_fe=None):
-    """Process single detector data."""
-    ([netcounts, obs_netcounts],
-     [bgcounts, obs_bgcounts], lowindex, highindex) = plot_spec_summary(
-        det_srcspecs, det_bgspecs, det_obs_srcspecs, det_obs_bgspecs,
-        det_ebins, en_range=[2.0, 10.0], det_mask_sim=det_mask,
-        det_mask_obs=det_obsmask)
-    ([netcounts_aroundfe, obs_netcounts_aroundfe],
-     [bgcounts_aroundfe, obs_bgcounts_aroundfe], aroundfe_lowindex,
-     aroundfe_highindex) = plot_spec_summary(
-        det_srcspecs, det_bgspecs, det_obs_srcspecs, det_obs_bgspecs,
-        det_ebins, en_range=[5.8, 7.6], det_mask_sim=det_mask,
-        det_mask_obs=det_obsmask, det=det_name)
-    bg_net_ratio = bgcounts/netcounts
-    obs_bg_netratio = obs_bgcounts/obs_netcounts
-    bg_net_ratio_aroundfe = bgcounts_aroundfe/netcounts_aroundfe
-    obs_bg_netratio_aroundfe = obs_bgcounts_aroundfe/obs_netcounts_aroundfe
-    ([fe_net, fe_src, fe_bg], [cont1_net, cont1_src, cont1_bg],
-     [cont2_net, cont2_src, cont2_bg]) = get_line_cont_counts(
-        det_srcspecs, det_bgspecs, det_ebins, range_fe=range_fe)
-    ([obs_fe_net, obs_fe_src, obs_fe_bg],
-     [obs_cont1_net, obs_cont1_src, obs_cont1_bg],
-     [obs_cont2_net, obs_cont2_src, obs_cont2_bg]) = get_line_cont_counts(
-        det_obs_srcspecs, det_obs_bgspecs, det_obs_ebins, range_fe=range_fe)
-    det_colors = get_colors_basic(fe_net, cont1_net, cont2_net, mask=det_mask)
-    obs_det_colors = get_colors_basic(obs_fe_net, obs_cont1_net, obs_cont2_net)
-    netcount_bins = 10**(np.linspace(1, 5, 21))
-    netcount_aroundfe_bins = 10**(np.linspace(0, 4, 21))
-    bg_net_ratio_bins = 10**(np.linspace(-2, 1, 21))
-    bg_net_ratio_aroundfe_bins = 10**(np.linspace(-2, 1, 21))
-    (mean_colors_withprop, std_colors_withprop,
-     median_colors_withprop) = bin_colors_withprop(
-        det_colors, [netcounts, netcounts_aroundfe, bg_net_ratio,
-                     bg_net_ratio_aroundfe],
-        ['Net counts (2-10 keV)', 'Net counts (5.8-7.6 keV)',
-         'Bg/net ratio (2-10 keV)', 'Bg/net ratio (5.8-7.6 keV)'],
-        obs_det_colors, [obs_netcounts, obs_netcounts_aroundfe,
-                         obs_bg_netratio, obs_bg_netratio_aroundfe],
-        [netcount_bins, netcount_aroundfe_bins, bg_net_ratio_bins,
-         bg_net_ratio_aroundfe_bins], plot=True, plot_det=det_name)[1:]
-    sim_det_dict = {'counts_2_10': [netcounts, bgcounts],
-                    'counts_aroundfe': [netcounts_aroundfe, bgcounts],
-                    'lowhigh_indices': [lowindex, highindex,
-                                        aroundfe_lowindex, aroundfe_highindex],
-                    'fe_cont_netcounts': [fe_net, cont1_net, cont2_net],
-                    'fe_cont_bgcounts': [fe_bg, cont1_bg, cont2_bg],
-                    'fe_cont_srccounts': [fe_src, cont1_src, cont2_src],
-                    'prop_bins': [netcount_bins, netcount_aroundfe_bins,
-                                  bg_net_ratio_bins,
-                                  bg_net_ratio_aroundfe_bins],
-                    'mean_std_colors_withprop': [
-                        mean_colors_withprop, std_colors_withprop,
-                        median_colors_withprop]}
-    obs_det_dict = {'counts_2_10': [obs_netcounts, obs_bgcounts],
-                    'counts_aroundfe': [obs_netcounts_aroundfe,
-                                        obs_bgcounts_aroundfe],
-                    'lowhigh_indices': [lowindex, highindex,
-                                        aroundfe_lowindex, aroundfe_highindex],
-                    'fe_cont_netcounts': [obs_fe_net, obs_cont1_net,
-                                          obs_cont2_net],
-                    'fe_cont_bgcounts': [obs_fe_bg, obs_cont1_bg,
-                                         obs_cont2_bg],
-                    'fe_cont_srccounts': [obs_fe_src, obs_cont1_src,
-                                          obs_cont2_src]}
-    return sim_det_dict, obs_det_dict
+def get_candidate_src_nums_det(obs_src_nums, obs_det_mask, sim_color_dict,
+                               obs_color_dict, min_counts):
+    """Get src nums of quiescent sources for given detector"""
+    obs_netcounts = obs_color_dict['prop_list'][0]
+    netcount_bins = sim_color_dict['prop_bins'][0]
+    obs_colors = obs_color_dict['colors']
+    color_median, color_std = sim_color_dict['color_stat'][1:]
+    for i, lower_bin in enumerate(netcount_bins):
+        if lower_bin < min_counts:
+            continue
+        if i == len(netcount_bins) - 2:
+            upper_bin = np.max(obs_netcounts) + 10
+            median_color = color_median[-1]
+            std_color = color_std[-1]
+        else:
+            upper_bin = netcount_bins[i+1]
+            median_color = color_median[i]
+            std_color = color_std[i]
+        print(lower_bin, median_color + std_color)
+        int_args = np.where(np.logical_and(
+            np.logical_and(obs_netcounts >= lower_bin,
+                           obs_netcounts < upper_bin),
+            obs_colors < median_color + std_color))[0]
+        if i == 0:
+            interested_args = int_args.copy()
+        else:
+            interested_args = np.append(interested_args.copy(), int_args)
+    return interested_args, obs_src_nums[obs_det_mask]
+
+
+def get_candidate_src_nums_alldet(spec_summary, sim_color_dict_arr,
+                                  obs_color_dict_arr, min_count_arr=None):
+    """Get source nums for all detectors."""
+    interested_args_alldet = []
+    interested_sources_alldet = []
+    if min_count_arr is None:
+        min_count_arr = [400, 400, 250]
+    for i, obs_color_dict in enumerate(obs_color_dict_arr):
+        interested_args, interested_srcs = get_candidate_src_nums_det(
+            spec_summary['src_nums'][i], spec_summary['spec_masks'][1][i],
+            sim_color_dict_arr[i], obs_color_dict, min_count_arr[i])
+        interested_args_alldet.append(interested_args)
+        interested_sources_alldet.append(interested_srcs)
+    return interested_args_alldet, interested_sources_alldet
 
 
 def combine_pn_mos_prop(pn_prop, mos_prop, pn_mask, mos_mask):
