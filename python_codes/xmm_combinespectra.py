@@ -56,9 +56,17 @@ def combine_stringlist(string_array):
 
 
 def get_bg_arf_resp(spectra, bg_directory='./', arf_directory='./',
-                    resp_directory='./'):
+                    resp_directory='./',
+                    resp_dir2=None):
     """Get the background, ARF, and response files."""
     spectra_header = fits.open(spectra)[1].header
+    print(spectra_header['NAXIS2'])
+    if spectra_header['NAXIS2'] > 800:
+    #    if resp_dir2 is None:
+    #        resp_dir2 = ('/Volumes/Pavan_Work_SSD/GalacticBulge_4XMM_Chandra/' +
+    #                     'data/XMM_responses/MOS_15eV/')
+    #    resp_directory = resp_dir2
+        return '15eVbin', '15eVbin', '15eVbin'
     bg_file = bg_directory + spectra_header['BACKFILE']
     arf_file = arf_directory + spectra_header['ANCRFILE']
     resp_file = resp_directory+spectra_header['RESPFILE']
@@ -73,12 +81,15 @@ def get_bg_arf_resp(spectra, bg_directory='./', arf_directory='./',
         raise OSError('Ancillary response file ' + arf_file +
                       ' does not exist')
     if not os.path.isfile(resp_file):
-        print('Response file ' + resp_file + ' does not exist. "_v20.0" is ' +
-              'appended to the response file name.')
-        resp_file = resp_file[:-4] + '_v20.0.rmf'
+        print('Adding .gz to response file name')
+        resp_file = resp_file + '.gz'
         if not os.path.isfile(resp_file):
-            raise OSError('Response matrix file ' + resp_file +
-                          ' does not exist')
+            print('Response file ' + resp_file + ' does not exist.' +
+                  ' "_v20.0" is appended to the response file name.')
+            resp_file = resp_file[:-7] + '_v20.0.rmf'
+            if not os.path.isfile(resp_file):
+                raise OSError('Response matrix file ' + resp_file +
+                              ' does not exist')
     return bg_file, arf_file, resp_file
 
 
@@ -86,26 +97,37 @@ def get_combine_det_inputs(source_num, detector, src_dir='./', rmf_dir='./'):
     """Get src & bg spectra & resp files for given source and detector."""
     det_folder = src_dir+source_num + '/EPIC_' + detector + '_spec'
     if detector in ('MOS1', 'MOS2'):
-        detector = 'MOS_5eV'
+        detector = 'MOS_15eV'
     # Check if the source has EPIC spectra in detector
     if os.path.isdir(det_folder):
         src_specs = glob2.glob(det_folder + '/*SRSPEC*.FTZ')
         if len(src_specs) == 0:
             return None
+        print(len(src_specs), src_specs)
+        src_specs_refined = []
         bg_specs = []
         arf_files = []
         rmf_files = []
+        invalid_exp_srcfiles = []
+        srcfiles_15evbins = []
         for spec in src_specs:
             bg_file, arf_file, rmf_file = get_bg_arf_resp(
                 spec, bg_directory=det_folder+'/',
                 arf_directory=det_folder+'/',
                 resp_directory=rmf_dir+detector+'/')
-            if bg_file != 'Invalid':
+            print(bg_file, spec)
+            if bg_file != 'Invalid' and bg_file != '15eVbin':
+                src_specs_refined.append(spec)
                 bg_specs.append(bg_file)
                 arf_files.append(arf_file)
                 rmf_files.append(rmf_file)
+            else:
+                print(bg_file)
+        
+        print(len(src_specs_refined), len(bg_specs), len(arf_files),
+              len(rmf_files))
 
-        return (combine_stringlist(src_specs),
+        return (combine_stringlist(src_specs_refined),
                 combine_stringlist(bg_specs),
                 combine_stringlist(arf_files),
                 combine_stringlist(rmf_files))
@@ -172,6 +194,12 @@ def merge_xmmspec(src_spec_str, bkg_spec_str, arf_spec_str,
                   rmf_spec_str, src_num=None, det=None, outputdir='./'):
     """Merge XMM spectra."""
     # Get source number and detector name if not given
+    if src_spec_str == ' ' or src_spec_str == '':
+        print('Hello')
+        return 0
+    else:
+        print('String = ', src_spec_str)
+        print('Length = ', len(src_spec_str))
     if src_num is None or det is None:
         src_spec0_split = src_spec_str.split(' ')
         if src_num is None:
@@ -253,8 +281,17 @@ def plot_source(specfile, specfile2=None, plot_device_set=False, labels=None,
 
 def merge_source(source_num, src_dir='./', rmf_dir='./', output_dir='./'):
     """Merge PN, and MOS spectra for the source_num."""
-    combined_pn_strings = get_combinepn_inputs(source_num, src_dir, rmf_dir)
-    combined_mos_strings = get_combinemos_inputs(source_num, src_dir, rmf_dir)
+    output_pn_spec = output_dir + source_num + '_PN_combined_src_grp.ds'
+    output_mos_spec = output_dir + source_num + '_MOS_combined_src_grp.ds'
+    if os.path.exists(output_pn_spec):
+        combined_pn_strings = None
+    else:
+        combined_pn_strings = get_combinepn_inputs(source_num, src_dir,
+                                                   rmf_dir)
+    if os.path.exists(output_mos_spec):
+        combined_mos_strings = None
+    else:
+        combined_mos_strings = get_combinemos_inputs(source_num, src_dir, rmf_dir)
     if combined_pn_strings is not None:
         merge_xmmspec(combined_pn_strings[0], combined_pn_strings[1],
                       combined_pn_strings[2], combined_pn_strings[3],

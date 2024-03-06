@@ -6,7 +6,7 @@ import subprocess
 import numpy as np
 
 
-def load_table(table_text_file, delimiter='|', skiprows=5, obselete_columns=1):
+def load_table(table_text_file, delimiter=',', skiprows=5, obselete_columns=0):
     """Load table."""
     obs_table = np.loadtxt(table_text_file, dtype=str, delimiter=delimiter,
                            skiprows=skiprows)
@@ -151,8 +151,11 @@ def download_resp(download_dir):
             pattern_lists=['.rmf'])
         resp_url_lists.append(url_list)
 
+    print(len(resp_url_lists))
     for i, url_list in enumerate(resp_url_lists):
-        for url in url_list:
+        print(len(url_list[0]))
+        for url in url_list[0]:
+            print(url)
             subprocess.run(['wget', '-P', download_dir+det_types[i], '-c',
                             url], check=False)
 
@@ -162,8 +165,8 @@ def main(table_loc, download_loc, rows_to_skip=4):
     det_table = load_table(table_loc, skiprows=rows_to_skip)
     detid_list = det_table[:, 0].astype(int).astype(str).tolist()
     srcid_list = det_table[:, 1].astype(int).astype(str).tolist()
-    srcnum_list = det_table[:, 2].astype(int).astype(str).tolist()
-    obsid_list = det_table[:, 3].astype(int).astype(str).tolist()
+    srcnum_list = det_table[:, 3].astype(int).astype(str).tolist()
+    obsid_list = det_table[:, 4].astype(int).astype(str).tolist()
     obsid_list = ['0' + obs_id for obs_id in obsid_list]
     print(obsid_list)
     download_spec(detid_list, srcid_list, srcnum_list, download_loc,
@@ -174,4 +177,4 @@ if __name__ == '__main__':
     if len(sys.argv) == 3:
         main(sys.argv[1], sys.argv[2])
     else:
-        main(sys.argv[1], sys.argv[2], sys.argv[3])
+        main(sys.argv[1], sys.argv[2], int(sys.argv[3]))
