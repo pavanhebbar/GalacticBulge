@@ -61,12 +61,12 @@ def get_bg_arf_resp(spectra, bg_directory='./', arf_directory='./',
     """Get the background, ARF, and response files."""
     spectra_header = fits.open(spectra)[1].header
     print(spectra_header['NAXIS2'])
-    if spectra_header['NAXIS2'] > 800:
-    #    if resp_dir2 is None:
-    #        resp_dir2 = ('/Volumes/Pavan_Work_SSD/GalacticBulge_4XMM_Chandra/' +
-    #                     'data/XMM_responses/MOS_15eV/')
-    #    resp_directory = resp_dir2
-        return '15eVbin', '15eVbin', '15eVbin'
+    if spectra_header['NAXIS2'] == 800:
+        if resp_dir2 is None:
+            resp_dir2 = ('/Volumes/Pavan_Work_SSD/GalacticBulge_4XMM_Chandra/' +
+                         'data/XMM_responses/MOS_15eV/')
+        resp_directory = resp_dir2
+    #    return '15eVbin', '15eVbin', '15eVbin'
     bg_file = bg_directory + spectra_header['BACKFILE']
     arf_file = arf_directory + spectra_header['ANCRFILE']
     resp_file = resp_directory+spectra_header['RESPFILE']
@@ -97,7 +97,7 @@ def get_combine_det_inputs(source_num, detector, src_dir='./', rmf_dir='./'):
     """Get src & bg spectra & resp files for given source and detector."""
     det_folder = src_dir+source_num + '/EPIC_' + detector + '_spec'
     if detector in ('MOS1', 'MOS2'):
-        detector = 'MOS_15eV'
+        detector = 'MOS_5eV'
     # Check if the source has EPIC spectra in detector
     if os.path.isdir(det_folder):
         src_specs = glob2.glob(det_folder + '/*SRSPEC*.FTZ')
@@ -223,7 +223,7 @@ def merge_xmmspec(src_spec_str, bkg_spec_str, arf_spec_str,
                     'filepha='+output_base_str+'src_grp.ds',
                     'filebkg='+output_base_str+'bkg_grp.ds',
                     'filersp='+output_base_str+'rsp_grp.ds',
-                    'allowHEdiff=no'], check=False)
+                    'allowHEdiff=yes'], check=False)
 
     # Get the total counts in the spectra to finally rename the grouped spectra
     spec_totcount = get_totalcounts(output_base_str+'src_grp.ds')

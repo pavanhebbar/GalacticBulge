@@ -1,0 +1,34 @@
+#CSCview Query
+#Thu Mar 07 16:18:57 MST 2024
+prop.value12=2
+prop.value11=8.0
+prop.value10=1
+pos.queryLimSen=false
+sort.properties=separation,master_source.name,observation_source.obsid,observation_source.obi,observation_source.region_id
+prop.value9=3
+prop.value8=3
+prop.value7=NONE
+prop.value6=ACIS
+qb.maxRows=all
+prop.properties=master_source.significance,master_source.likelihood_class,master_source.flux_aper_h,master_source.photflux_aper_h,master_source.hard_hm_hilim,master_source.hard_hm_hilim,stack_source.instrument,stack_source.grating,stack_source.detect_significance_h,stack_source.flux_significance_h,observation_source.flux_significance_h,observation_source.theta,observation_source.edge_code
+prop.value4=0.70
+prop.value3=0
+prop.operators=>\=,\=,>,>,>\=,NULL,\=,\=,>\=,>\=,>\=,<\=,<
+prop.value2=0
+pos.cone.mode=name
+prop.value1=TRUE
+prop.value0=3
+prop.logical=AND,AND,AND,AND,OR,AND,AND,AND,AND,AND,AND,AND,
+rs.properties=separation,master_source.name,master_source.ra,master_source.dec,master_source.gal_l,master_source.gal_b,master_source.err_ellipse_r0,master_source.err_ellipse_r1,master_source.err_ellipse_ang,master_source.significance,master_source.likelihood_class,master_source.acis_time,master_source.conf_flag,master_source.extent_flag,master_source.flux_aper_h,master_source.flux_aper_lolim_h,master_source.flux_aper_hilim_h,master_source.photflux_aper_h,master_source.photflux_aper_lolim_h,master_source.photflux_aper_hilim_h,master_source.hard_hm,master_source.hard_hm_lolim,master_source.hard_hm_hilim,master_source.major_axis_h,master_source.major_axis_lolim_h,master_source.major_axis_hilim_h,master_source.minor_axis_h,master_source.minor_axis_lolim_h,master_source.minor_axis_hilim_h,master_source.pos_angle_h,master_source.pos_angle_lolim_h,master_source.pos_angle_hilim_h,master_source.src_area_h,master_source.var_intra_index_h,master_source.var_intra_prob_h,master_source.ks_intra_prob_h,master_source.kp_intra_prob_h,master_source.var_inter_index_h,master_source.var_inter_prob_h,master_source.var_inter_sigma_h,observation_source.obsid,observation_source.obi,observation_source.region_id,observation_source.gti_start,observation_source.gti_obs,observation_source.gti_elapse,observation_source.livetime,observation_source.theta,observation_source.phi,observation_source.flux_significance_h,observation_source.conf_code,observation_source.edge_code,observation_source.hard_hm,observation_source.src_cnts_aper_h,observation_source.src_cnts_aper_lolim_h,observation_source.src_cnts_aper_hilim_h,observation_source.flux_aper_h,observation_source.flux_aper_lolim_h,observation_source.flux_aper_hilim_h,observation_source.photflux_aper_h,observation_source.photflux_aper_lolim_h,observation_source.photflux_aper_hilim_h,observation_source.mjr_axis_raw_h,observation_source.mjr_axis_raw_lolim_h,observation_source.mjr_axis_raw_hilim_h,observation_source.mnr_axis_raw_h,observation_source.mnr_axis_raw_lolim_h,observation_source.mnr_axis_raw_hilim_h,observation_source.pos_angle_raw_h,observation_source.pos_angle_raw_lolim_h,observation_source.pos_angle_raw_hilim_h,observation_source.psf_mjr_axis_raw_h,observation_source.psf_mjr_axis_raw_lolim_h,observation_source.psf_mjr_axis_raw_hilim_h,observation_source.psf_mnr_axis_raw_h,observation_source.psf_mnr_axis_raw_lolim_h,observation_source.psf_mnr_axis_raw_hilim_h,observation_source.psf_pos_angle_raw_h,observation_source.psf_pos_angle_raw_lolim_h,observation_source.psf_pos_angle_raw_hilim_h,observation_source.var_index_h,observation_source.var_prob_h
+cscview_version=1.3.10
+qb.catalogRelease=2.0
+qp.mode=form
+pos.cone.units=arcmin
+prop.closedParen=),),),),),)),),),),),),),)
+pos.cone.radius=30
+pos.cone.name=Sgr A*
+pos.type=cone
+sort.directions=ascending,ascending,ascending,ascending,ascending
+prop.openParen=(,(,(,(,((,(,(,(,(,(,(,(,(
+qb.distinct=true
+pos.cone.service=Simbad/NED
