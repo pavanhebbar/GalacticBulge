@@ -256,7 +256,7 @@ def plot_source(specfile, specfile2=None, plot_device_set=False, labels=None,
         xspec.Plot.setRebin(3, 10, 1)
         xspec.Plot.setRebin(3, 10, 2)
     spec = xspec.Spectrum(specfile)
-    spec.ignore('0.0-0.2, 10.0-**')
+    spec.ignore('0.0-2.0, 10.0-**')
     if specfile2 is not None:
         spec2 = xspec.Spectrum(specfile2)
         spec2.ignore('0.0-0.2, 10.0-**')
@@ -291,7 +291,8 @@ def merge_source(source_num, src_dir='./', rmf_dir='./', output_dir='./'):
     if os.path.exists(output_mos_spec):
         combined_mos_strings = None
     else:
-        combined_mos_strings = get_combinemos_inputs(source_num, src_dir, rmf_dir)
+        combined_mos_strings = get_combinemos_inputs(source_num, src_dir,
+                                                     rmf_dir)
     if combined_pn_strings is not None:
         merge_xmmspec(combined_pn_strings[0], combined_pn_strings[1],
                       combined_pn_strings[2], combined_pn_strings[3],
@@ -310,7 +311,7 @@ def plot_folder(folder_name, output_dir='./', source_nums=None, plot=True):
         output_dir += '/'
 
     if source_nums is None:
-        specfiles = glob2.glob(folder_name + '*_grp1*.ds')
+        specfiles = glob2.glob(folder_name + '*src_grp1*.ds')
         source_nums_prilim = []
         for spec in specfiles:
             filename = spec.split('/')[-1]
@@ -327,7 +328,7 @@ def plot_folder(folder_name, output_dir='./', source_nums=None, plot=True):
         mos_spec = glob2.glob(
             folder_name + source_num + '_MOS_combined_src_grp1_*.ds')
         if len(pn_spec) == 1 and len(mos_spec) == 1:
-            figname = output_dir + source_num + '_PN_MOS_combined_src.png'
+            figname = output_dir + source_num + '_PN_MOS_combined_src2.png'
             plot_source(pn_spec[0], specfile2=mos_spec[0],
                         plot_device_set=plot_device_set, labels=['PN', 'MOS'],
                         figname=figname)
@@ -345,7 +346,7 @@ def plot_folder(folder_name, output_dir='./', source_nums=None, plot=True):
             print(pn_spec)
             print(mos_spec)
             raise IOError('Weird combination. pn_spec has length ' +
-                          str(len(pn_spec)) + ' and mos_spec has length' +
+                          str(len(pn_spec)) + ' and mos_spec has length ' +
                           str(len(mos_spec)))
 
     return source_nums

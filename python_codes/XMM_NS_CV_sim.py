@@ -155,9 +155,50 @@ def get_src_nums(src_file_list):
     return src_nums
 
 
+def msp_sims_chandra_src(num_msps, nh_vals, gamma_vals, unabs_lx_vals,
+                         src_folder, sim_msp_folder='./', file_prefix='msp_'):
+    """Simulate Chandra MSPs.
+    
+    Give the absolute path for sim_msp_folder.
+    """
+    src_files = glob2.glob(src_folder + '/*/*_combined_src.pi')
+    src_args = np.random.choice(np.arange(len(src_files)), size=num_msps)
+    for i in range(num_msps):
+        sim_msp_from_src(
+            src_files[src_args[i]],
+            sim_msp_folder + file_prefix + str(i) + '.fak',
+            nh_vals[i], gamma_vals[i], unabs_lx_vals[i])
+        
+        if i % 1000 == 0:
+            print('Finished ' + str(i) + ' simulations')
+
+
+def msp_sims_from_src2(num_msps, nh_vals, gamma_vals, unabs_lx_vals,
+                       src_folder, sim_msp_folder='./', file_prefix='msp_'):
+    """Simulate equal number of PN and MOS MSPs from source files."""
+    (common_files_pn, common_files_mos, only_pn_files,
+     only_mos_files) = get_xmm_src_files(src_folder)
+    pn_files = common_files_pn + only_pn_files
+    mos_files = common_files_mos + only_mos_files
+    pn_src_args = np.random.choice(np.arange(len(pn_files)), size=num_msps)
+    mos_src_args = np.random.choice(np.arange(len(mos_files)), size=num_msps)
+    for i in range(num_msps):
+        sim_msp_from_src(
+                pn_files[pn_src_args[i]],
+                sim_msp_folder + file_prefix + str(i) + '_PN.fak',
+                nh_vals[i], gamma_vals[i], unabs_lx_vals[i])
+        sim_msp_from_src(
+                mos_files[mos_src_args[i]],
+                sim_msp_folder + file_prefix + str(i) + '_MOS.fak',
+                nh_vals[i], gamma_vals[i], unabs_lx_vals[i])
+
+        if i % 1000 == 0:
+            print('Finished ' + str(i) + ' simulations')
+    
+
 def msp_sims_from_src(num_msps, nh_vals, gamma_vals, unabs_lx_vals, src_folder,
                       sim_msp_folder='./', file_prefix='msp_'):
-    """Simulate MSPs rom source files."""
+    """Simulate PN and MOS MSPs from source files based on source detection."""
     (common_files_pn, common_files_mos, only_pn_files,
      only_mos_files) = get_xmm_src_files(src_folder)
     src_files = common_files_pn + only_pn_files + only_mos_files
@@ -272,3 +313,4 @@ def main(num_msps=10000, nh_abs_type='high', src_folder=None,
                       sim_msp_folder, 'msp_'+nh_abs_type+'NH_')
     msp_param_vals = np.column_stack(nh_vals, gamma_vals, lx_vals)
     np.savetxt(sim_msp_folder + 'paramfile.txt', msp_param_vals)
+    return nh_vals, gamma_vals, lx_vals
