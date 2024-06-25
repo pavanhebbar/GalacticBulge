@@ -10,6 +10,7 @@ Analysis should be done both for PN and MOS
 
 
 import copy
+from tkinter import N
 import glob2
 import os
 import xspec
@@ -94,6 +95,26 @@ def sim_cv_from_src(src_file, sim_msp_name, nh_val, temp_val, unabs_lx_val,
     xspec.AllModels.clear()
 
 
+def sim_cv_from_craig(src_file, sim_msp_name, nh_val, gamma_val, unabs_lx_val,
+                      ew_fe):
+    ip_settings = xspec.FakeitSettings(fileName=sim_msp_name)
+    spectrum = xspec.Spectrum(src_file)
+    ip_model = xspec.Model("tbabs*(pegpwrlw+gaussian)")
+    unabs_flux = unabs_lx_val/(7.65757E+45)
+    ip_model.setPars({1: nh_val, 2: gamma_val, 5: unabs_flux/1.0E-12, 6: 6.54,
+                      7: 0.2, 8: 1.0E-4})
+    xspec.AllModels.eqwidth(3, rangeFrac=0.0)
+    test_ew = spectrum.eqwidth[0]
+    norm = ew_fe/test_ew*1.0E-4
+    xspec.AllModels.clear()
+    ip_model = xspec.Model("tbabs*(pegpwrlw+gaussian)")
+    ip_model.setPars({1: nh_val, 2: gamma_val, 5: unabs_flux/1.0E-12, 6: 6.54,
+                      7: 0.2, 8: norm})
+    xspec.AllData.fakeit(1, ip_settings)
+    xspec.AllData.clear()
+    xspec.AllModels.clear()
+
+
 def msp_simulations(num_msps, nh_vals, gamma_vals, unabs_lx_vals,
                     resp_files=None, arf_files=None, bg_files=None,
                     obs_folder=None, rmf_folder=None, exp_times=None,
@@ -168,6 +189,30 @@ def msp_sims_chandra_src(num_msps, nh_vals, gamma_vals, unabs_lx_vals,
             src_files[src_args[i]],
             sim_msp_folder + file_prefix + str(i) + '.fak',
             nh_vals[i], gamma_vals[i], unabs_lx_vals[i])
+        
+        if i % 1000 == 0:
+            print('Finished ' + str(i) + ' simulations')
+
+
+def cvs_sims_chandra_src(num_msps, nh_vals, temp_vals, unabs_lx_vals,
+                         ew_64_vals, ew_67_vals, ew_70_vals, src_folder,
+                         sim_cv_folder='./', file_prefix='ip_'):
+    """Simulate Chandra MSPs.
+    
+    Give the absolute path for sim_msp_folder.
+    """
+    src_files = glob2.glob(src_folder + '/*/*_combined_src.rmf')
+    src_args = np.random.choice(np.arange(len(src_files)), size=num_msps)
+    curr_dir = os.getcwd()
+    for i in range(num_msps):
+        os.chdir(os.path.dirname(src_files[src_args[i]])) 
+        srcfilename = os.path.basename(src_files[src_args[i]])[:-3] + 'pi'
+        sim_cv_from_src(
+            srcfilename,
+            sim_cv_folder + file_prefix + str(i) + '.fak',
+             nh_vals[i], temp_vals[i], unabs_lx_vals[i], ew_64_vals[i],
+             ew_67_vals[i], ew_70_vals[i])
+        os.chdir(curr_dir)
         
         if i % 1000 == 0:
             print('Finished ' + str(i) + ' simulations')
@@ -258,6 +303,32 @@ def cvs_sims_from_src(num_cvs, nh_vals, temp_vals, unabs_lx_vals, ew_64_vals,
             print('Finished ' + str(i) + ' simulations')
 
 
+def cvs_sims_from_src2(num_msps, nh_vals, temp_vals, unabs_lx_vals, ew_64_vals,
+                       ew_67_vals, ew_70_vals, src_folder, sim_cv_folder='./',
+                       file_prefix='cv_'):
+    """Simulate equal number of PN and MOS MSPs from source files."""
+    (common_files_pn, common_files_mos, only_pn_files,
+     only_mos_files) = get_xmm_src_files(src_folder)
+    pn_files = common_files_pn + only_pn_files
+    mos_files = common_files_mos + only_mos_files
+    pn_src_args = np.random.choice(np.arange(len(pn_files)), size=num_msps)
+    mos_src_args = np.random.choice(np.arange(len(mos_files)), size=num_msps)
+    for i in range(num_msps):
+        sim_cv_from_src(
+                pn_files[pn_src_args[i]],
+                sim_cv_folder + file_prefix + str(i) + '_PN.fak',
+                nh_vals[i], temp_vals[i], unabs_lx_vals[i], ew_64_vals,
+                ew_67_vals[i], ew_70_vals[i])
+        sim_cv_from_src(
+                mos_files[mos_src_args[i]],
+                sim_cv_folder + file_prefix + str(i) + '_MOS.fak',
+                nh_vals[i], temp_vals[i], unabs_lx_vals[i], ew_64_vals[i],
+                ew_67_vals[i], ew_70_vals[i])
+
+        if i % 1000 == 0:
+            print('Finished ' + str(i) + ' simulations')
+
+
 def get_msp_param_vals(num_msps, nh_abs_type):
     """Get parameter values for the MSP simulations."""
     if nh_abs_type == 'high':
@@ -289,10 +360,10 @@ def cv_param_vals(num_cvs, nh_abs_type, cv_type='IP'):
     lx_vals = np.random.uniform(31.0, 34.0, num_cvs)
     lx_vals = 10**lx_vals
     if cv_type == 'IP':
-        temp_vals = np.random.normal(34.0, 4.54, num_cvs)
-        ew_64_vals = np.random.normal(115.0, 9.12, num_cvs)
-        ew_67_vals = np.random.normal(107, 16.0, num_cvs)
-        ew_70_vals = np.random.normal(80, 6.81, num_cvs)
+        temp_vals = np.random.normal(34.0, 14.61, num_cvs)
+        ew_64_vals = np.random.normal(115.0, 36.22, num_cvs)*2
+        ew_67_vals = np.random.normal(107, 65.39, num_cvs)*2
+        ew_70_vals = np.random.normal(80, 27.91, num_cvs)*2
     elif cv_type == 'SS':
         temp_vals = np.random.normal(27.2, 20.8, num_cvs)
         ew_64_vals = np.random.normal(280, 90, num_cvs)
@@ -301,6 +372,48 @@ def cv_param_vals(num_cvs, nh_abs_type, cv_type='IP'):
     else:
         print('CV types can only be IP or SS')
     return nh_vals, temp_vals, lx_vals, ew_64_vals, ew_67_vals, ew_70_vals
+
+def ip_param_vals(num_cvs, nh_abs_type='high'):
+    """Get IP parameter values."""
+    if nh_abs_type == 'high':
+        nh_vals = np.random.uniform(22.7, 23.7, num_cvs)
+    elif nh_abs_type == 'mid':
+        nh_vals = np.random.uniform(22.0, 22.7, num_cvs)
+    elif nh_abs_type == 'low':
+        nh_vals = np.random.uniform(21.0, 22.0, num_cvs)
+    else:
+        print("'nh_abs_type' should be 'high', 'mid', or 'low'.")
+    nh_vals = 10**nh_vals
+    lx_vals = np.random.uniform(31.0, 34.0, num_cvs)
+    lx_vals = 10**lx_vals
+
+    temp_vals = np.random.choice(
+        [19.7, 42.6, 9.41, 19.1, 30.5, 63.6, 15.8, 43.5, 32.6, 65.9, 40.5,
+         26.9, 26.6, 22.8, 47.3, 39.6, 31.6], num_cvs)
+    ew_64_vals = np.random.choice(
+        [158, 102, 32, 133, 128, 88, 139, 156, 128, 172, 120, 88, 97, 140, 131,
+         70], num_cvs)/1000
+    ew_67_vals = np.random.choice(
+        [174, 81, 325, 73, 91, 59, 101, 116, 68, 79, 131, 121, 71, 102, 60,
+         94], num_cvs)/1000
+    ew_70_vals = np.random.choice(
+        [100, 54, 110, 58, 32, 62, 134, 120, 62, 91, 104, 94, 70, 93, 69, 57],
+        num_cvs)/1000
+    return nh_vals, temp_vals, lx_vals, ew_64_vals, ew_67_vals, ew_70_vals
+
+
+def ip_param_vals_craig(num_cvs):
+    """Param values of ASCA IPs."""
+    nh_vals = 10**np.random.uniform(22.7, 23.7, num_cvs)
+    lx_vals = 10**np.random.uniform(31.0, 34.0, num_cvs)
+    gamma_vals = np.random.choice(
+        [2.53, 1.32, 0.9, 1.32, 1.98, 0.66, 1.29, 0.59, 1.08, 1.0, 1.11, 1.83,
+         0.81, 1.07, 0.86, 1.2, 0.95, 1.49, 1.12, 1.96], num_cvs)
+    ew_vals = np.random.choice(
+        [769, 450, 4.12, 264, 772, 488, 206, 596, 311, 388, 403, 456, 298, 282,
+         247, 389, 411, 691, 206, 698], num_cvs)/1000
+    return nh_vals, gamma_vals, lx_vals, ew_vals
+
 
 
 def main(num_msps=10000, nh_abs_type='high', src_folder=None,
