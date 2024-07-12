@@ -4,6 +4,7 @@ Calculate in galactic coordinates and convert to equatorial coordinates.
 """
 
 import glob2
+import subprocess
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -11,6 +12,7 @@ from astropy.io import fits
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 from astropy.wcs import WCS
+from matplotlib.colors import LogNorm
 
 
 def gal_to_eq(gal_l, gal_b):
@@ -117,42 +119,108 @@ def wcs_to_gal_grid(wcs_header):
     return gal_l_grid, gal_b_grid
 
 
-def add_expmap(expmap_file, full_grid_l, full_grid_b, full_exp_map):
-    """Add exposure map to the main grid."""
+def read_expmap(expmap_file):
+    """Read exposure map."""
     hdu_table = fits.open(expmap_file)
-    exp_header = hdu_table[0].header
     exp_map = hdu_table[0].data
-    exp_map_coord = wcs_to_gal_grid(WCS(exp_header))
+    exp_filter = hdu_table[0].header['FILTER']
+    exp_map_coord = wcs_to_gal_grid(WCS(hdu_table[0].header))
+    return exp_map_coord, exp_map, exp_filter
+
+
+def expmap_on_grid(expmap_file, full_grid_l, full_grid_b):
+    """Export exposure map on the grid."""
+    exp_map_coord, exp_map, exp_filter = read_expmap(expmap_file)
     gal_l_coordinates = exp_map_coord[0].reshape((-1, 1))
     gal_b_coordinates = exp_map_coord[1].reshape((-1, 1))
     l_indices, b_indices = get_grid_indices(
         full_grid_l, full_grid_b,
         np.hstack([gal_l_coordinates, gal_b_coordinates]))
-    for i in range(full_grid_l.shape[0]):
-        for j in range(full_grid_l.shape[1]):
-            bin_indices = np.where(np.logical_and(
-                l_indices == i, b_indices == j))[0]
-            if len(bin_indices) > 0:
-                full_exp_map[i, j] += np.mean(exp_map[bin_indices])
+    grid_count = np.zeros_like(full_grid_l)
+    exp_map_grid = np.zeros_like(full_grid_b)
+    for i, l_index in enumerate(l_indices):
+        grid_count[b_indices[i], l_index] += 1
+        exp_map_grid[b_indices[i], l_index] += exp_map.reshape(-1)[i]
+    grid_count[np.logical_and(grid_count==0, exp_map_grid==0)] = 1
+    return (exp_map_grid/grid_count), exp_filter
+
+
+def add_expmap(expmap_file, full_grid_l, full_grid_b, full_exp_map):
+    """Add exposure map to the main grid."""
+    hdu_table = fits.open(expmap_file)
+    exp_map = hdu_table[0].data
+    exp_map_coord = wcs_to_gal_grid(WCS(hdu_table[0].header))
+    gal_l_coordinates = exp_map_coord[0].reshape((-1, 1))
+    gal_b_coordinates = exp_map_coord[1].reshape((-1, 1))
+    l_indices, b_indices = get_grid_indices(
+        full_grid_l, full_grid_b,
+        np.hstack([gal_l_coordinates, gal_b_coordinates]))
+    grid_count = np.zeros_like(full_exp_map)
+    exp_map_grid = np.zeros_like(full_exp_map)
+    for i, l_index in enumerate(l_indices):
+        grid_count[b_indices[i], l_index] += 1
+        exp_map_grid[b_indices[i], l_index] += exp_map.reshape(-1)[i]
+    full_exp_map += (exp_map_grid/grid_count)
     return full_exp_map
+
 
 def combine_exp_maps(exp_map_list, full_grid_l, full_grid_b):
     """Add exposure maps."""
-    exp_map_final = np.zeros_like(full_grid_l)
+    exp_map_thin = np.zeros_like(full_grid_l)
+    exp_map_medium = np.zeros_like(full_grid_l)
+    exp_map_thick = np.zeros_like(full_grid_l)
     for exp_map in exp_map_list:
-        exp_map_final = add_expmap(exp_map, full_grid_l, full_grid_b,
-                                   exp_map_final.copy())
-    return exp_map_final, full_grid_l, full_grid_b
+        exp_map_grid, exp_filter = expmap_on_grid(exp_map, full_grid_l,
+                                                  full_grid_b)
+        if exp_filter.lower() == 'thin':
+            exp_map_thin += exp_map_grid
+        elif exp_filter.lower() == 'medium':
+            exp_map_medium += exp_map_grid
+        elif exp_filter.lower() == 'thick':
+            exp_map_thick += exp_map_grid
+    return exp_map_thin, exp_map_medium, exp_map_thick
 
 
-def plot_exp_nh(exp_grids, exp_map, nh_grids, nh_maps):
-    """Plot exposure and Nh maps.
+def plot_countours(grid_l, grid_b, map_image, name_axes=True, filled=False,
+                   axes=None, cmap='YlOrRd_r', map_levels=None, vmin=3,
+                   map_label=None):
+    """Plot contours."""
+    if axes is None:
+        axes = plt.subplots()[1]
+    if name_axes:
+        axes.set_xlabel('Galactic Longitude')
+        axes.set_ylabel('Galactic latitude')
+    if filled:
+        axes.contourf(grid_l, grid_b, map_image, levels=map_levels,
+                      norm=LogNorm(vmin=vmin), cmap=cmap)
+        cbar = plt.colorbar()
+        cbar.set_label(map_label)
+    else:
+        contours = axes.contour(grid_l, grid_b, map_image, levels=map_levels)
+        axes.clabel(contours, inline=True)
+    return axes 
 
-    Exposures will be plotted in colors and NH contours will be shown on them.
-    """
-    plt.figure()
-    plt.contourf(exp_grids[0], exp_grids[1], exp_map, cmap='inferno',
-                 origin='lower')
+
+def write_pimmsfile(nh, exposure, count_limit=250, telescope='xmm',
+                    detector='pn', filter=None):
+    """Write file to run with pimms."""
+    cr_limit = count_limit/exposure
+    if filter is None:
+        if telescope == 'xmm':
+            filter = 'medium'
+        else:
+            filter = ''
+    with open('pimms_flux_calc.xco', 'w') as writer:
+        writer.writelines('model pl 2.0 ' + str(nh) + '\n')
+        writer.writelines('from ' + telescope + ' ' + detector + ' ' + filter
+                          + ' 2.0-10.0\n')
+        writer.writelines('inst flux ergs 2.0-10.0 unabsorbed\n')
+        writer.writelines('go ' + str(cr_limit) + '\n')
+        writer.writelines('exit\n')
+
+
+def run_pimmsfile(file):
+    """Run the pimms file and return the unabsorbed flux."""
 
 
 
