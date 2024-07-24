@@ -1,0 +1,22 @@
+*** PIMMS version 4.13a ***
+    2024 Feb 7th Release
+    Reading mission directory, please wait
+* Current model is BREMSSTRAHLUNG, kT=  10.0000 keV; NH =  1.000E+21
+   <--- Use 'MODEL' command to change
+        and 'PLASMA' command to switch among APEC/mekal/RS
+* By default, input rate is taken to be
+ Flux (      2.000-     10.000 keV) in ergs/cm/cm/s
+   <--- Use 'FROM' command to change the default
+* Simulation product will be
+ Count rate in CHANDRA ACIS-I
+   <--- Use 'INSTRUMENT' command to switch to another instrument
+! PIMMS > model pl 2.0 2.3e+23
+! PIMMS > from XMM pn medium 2.0-10.0
+! PIMMS > inst flux ergs 2.0-10.0 unabsorbed
+! PIMMS > go 0.016353158848728608
+* For power law model with photon index = 2.0000; NH =  2.300E+23
+  and  1.635E-02 cps in XMM PN MEDIUM (    2.000-   10.000keV)
+%!% Pile-up corrected PATTERN=0-4 rate in 5 arcmin region assumed
+  (Internal model normalization =  1.783E-04)
+* PIMMS predicts an unabsorbed flux (      2.000-     10.000keV) of  4.598E-13 ergs/cm/cm/s
+! PIMMS > exit

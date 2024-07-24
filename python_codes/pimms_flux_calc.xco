@@ -1,0 +1,5 @@
+model pl 2.0 2.61e+23
+from XMM pn medium 2.0-10.0
+inst flux ergs 2.0-10.0 unabsorbed
+go 0.01375127792331945
+exit
