@@ -3,9 +3,9 @@
 Calculate in galactic coordinates and convert to equatorial coordinates.
 """
 
-from tkinter import N
-import glob2
+import copy
 import os
+import glob2
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -14,6 +14,7 @@ from astropy.coordinates import SkyCoord
 from astropy import units as u
 from astropy.wcs import WCS
 from matplotlib.colors import LogNorm
+from scipy import interpolate
 
 
 def gal_to_eq(gal_l, gal_b):
@@ -86,14 +87,22 @@ def get_coordinates_exposure(specfile):
     return np.array([src_l, src_b]), src_exposure
 
 
-def get_coord_exp_list(file_list):
+def get_source_name(specfile):
+    """Get name of the source whose spectra is given."""
+    return specfile.split('/')[-1].split('_')[0]
+
+
+def get_name_coord_exp_list(file_list):
     """Get eposures and coordinates of a list of spectra."""
     coord_list = np.zeros((len(file_list), 2), dtype=float)
     exp_list = np.zeros(len(file_list), dtype=float)
+    source_name_list = np.zeros(len(file_list), dtype=object)
     for i, file in enumerate(file_list):
         coord_list[i], exp_list[i] = get_coordinates_exposure(file)
-
-    return coord_list, exp_list
+        source_name_list[i] = get_source_name(file)
+    coord_list[:, 0][coord_list[:, 0] > 180] = (
+        coord_list[:, 0][coord_list[:, 0] > 180] - 360.0)
+    return source_name_list, coord_list, exp_list
 
 
 def map_exposures(coord_list, exp_list, gal_l_grid, gal_b_grid):
@@ -150,27 +159,6 @@ def expmap_on_grid(expmap_file, full_grid_l, full_grid_b):
     return (exp_map_grid/grid_count)[:-1, :-1], exp_filter
 
 
-'''
-def add_expmap(expmap_file, full_grid_l, full_grid_b, full_exp_map):
-    """Add exposure map to the main grid."""
-    hdu_table = fits.open(expmap_file)
-    exp_map = hdu_table[0].data
-    exp_map_coord = wcs_to_gal_grid(WCS(hdu_table[0].header))
-    gal_l_coordinates = exp_map_coord[0].reshape((-1, 1))
-    gal_b_coordinates = exp_map_coord[1].reshape((-1, 1))
-    l_indices, b_indices = get_grid_indices(
-        full_grid_l, full_grid_b,
-        np.hstack([gal_l_coordinates, gal_b_coordinates]))
-    grid_count = np.zeros_like(full_exp_map)
-    exp_map_grid = np.zeros_like(full_exp_map)
-    for i, l_index in enumerate(l_indices):
-        grid_count[b_indices[i], l_index] += 1
-        exp_map_grid[b_indices[i], l_index] += exp_map.reshape(-1)[i]
-    full_exp_map += (exp_map_grid/grid_count)
-    return full_exp_map
-'''
-
-
 def combine_exp_maps(exp_map_list, full_grid_l, full_grid_b, nofilter=False):
     """Add exposure maps."""
     if nofilter:
@@ -202,6 +190,15 @@ def get_grid_centers(grid_corners_l, grid_corners_b):
     grid_centers_b = 0.25*(grid_corners_b[1:, 1:] + grid_corners_b[1:, :-1] +
                            grid_corners_b[:-1, 1:] + grid_corners_b[:-1, :-1])
     return grid_centers_l, grid_centers_b
+
+
+def get_grid_corners_1d(grid_centers_1d):
+    """Get corners of the grid from the centers."""
+    grid_corners_1d = np.hstack([
+        grid_centers_1d[0] - 0.5*(grid_centers_1d[1] - grid_centers_1d[0]),
+        0.5*(grid_centers_1d[1:] + grid_centers_1d[:-1]),
+        grid_centers_1d[-1] + 0.5*(grid_centers_1d[-1] - grid_centers_1d[-2])])
+    return grid_corners_1d
 
 
 def main_expmaps(folder=None, pattern='*', num_grids=60, full_grid_l=None,
@@ -243,7 +240,7 @@ def main_expmaps(folder=None, pattern='*', num_grids=60, full_grid_l=None,
                                  exp_map_thick]):
         plot_contours(grid_centers_l, grid_centers_b, exp_map, filled=True,
                       axes=axes[np.unravel_index(i, (2, 2))],
-                      map_levels=exp_levels, map_label='Exposure (ks)',
+                      map_levels=exp_levels, map_label='Exposure (s)',
                       title=('Combined exposure [' + det_filters[i] +
                              ' ]'))
 
@@ -251,8 +248,79 @@ def main_expmaps(folder=None, pattern='*', num_grids=60, full_grid_l=None,
             [grid_centers_l, grid_centers_b], fig, axes)
 
 
+def plot_fine_maps(folder, nh_data_file, pattern='*', telescope='XMM',
+                   xmm_specfolder=None, csc_masterfile=None, min_exp=3,
+                   legend=None):
+    """Get fine resolution exposure maps of Chandra and XMM."""
+    # Reading NH data
+    nh_grid_centers, nh_grid = read_nhdata(nh_data_file)[1:]
+    if telescope == 'Chandra':
+        nh_grid_centers = [nh_grid_centers[0][32:47, 32:47],
+                           nh_grid_centers[1][32:47, 32:47]]
+        nh_grid = nh_grid[32:47, 32:47]
+    print('NH data read')
+
+    # Constructing exposure maps
+    if telescope == 'Chandra':
+        fine_grid = np.meshgrid(np.linspace(-0.56, 0.44, 121),
+                                np.linspace(-0.56, 0.44, 121))
+        exp_map, grid_centers = main_expmaps(
+            folder, pattern, full_grid_l=fine_grid[0],
+            full_grid_b=fine_grid[1], plot=False, telescope='Chandra')[:2]
+        exp_maps = [exp_map]
+        mos_exp_map = None
+    else:
+        fine_grid = np.meshgrid(np.linspace(-3, 3, 721),
+                                np.linspace(-3, 3, 721))
+        pn_exp_maps, grid_centers = main_expmaps(
+            folder + '/pn_maps', pattern, full_grid_l=fine_grid[0],
+            full_grid_b=fine_grid[1], plot=False, telescope='XMM')[:2]
+        mos_exp_maps = main_expmaps(
+            folder + '/mos_maps', pattern, full_grid_l=fine_grid[0],
+            full_grid_b=fine_grid[1], plot=False, telescope='XMM')[0]
+        exp_map = pn_exp_maps[0] + pn_exp_maps[1] + pn_exp_maps[2]
+        mos_exp_map = mos_exp_maps[0] + mos_exp_maps[1] + mos_exp_maps[2]
+        exp_maps = [pn_exp_maps, mos_exp_maps]
+    print('Exp maps combined')
+
+    # Read source coordinates
+    if telescope == 'XMM':
+        if xmm_specfolder is None:
+            xmm_specfolder = '.'
+        pn_files = glob2.glob(xmm_specfolder + '/*PN*grp1*cts.ds')
+        mos_files = glob2.glob(xmm_specfolder + '/*MOS*grp1*cts.ds')
+        srcs, coord = get_name_coord_exp_list(pn_files)[:-1]
+        mos_srcs, mos_coord = get_name_coord_exp_list(mos_files)[:-1]
+        mos_coord = mos_coord.copy().transpose()
+        markers = ['o']
+    else:
+        csc_master = pd.read_table(csc_masterfile, header=13)
+        srcs = np.array(csc_master['name'])
+        csc_ra = np.array([
+            (float(ra_str.split()[0]) + float(ra_str.split()[1])/60 +
+             float(ra_str.split()[2])/3600) for ra_str in csc_master['ra']])*15
+        csc_dec = np.array([
+            (float(dec_str.split()[0]) - float(dec_str.split()[1])/60 -
+             float(dec_str.split()[2])/3600) for dec_str in csc_master['dec']])
+        csc_l, csc_b = eq_to_gal(csc_ra, csc_dec)
+        csc_l[csc_l > 180] = csc_l[csc_l > 180] - 360
+        coord = np.column_stack([csc_l, csc_b])
+        mos_srcs = None
+        mos_coord = None
+        mos_exp_map = None
+        markers = ['^', 'v', 'd']
+    print('Coordinates read')
+
+    # Plotting everything.
+    plot_all(nh_grid_centers, nh_grid, exp_map, srcs, coord.transpose(),
+             mos_exp_map, mos_srcs, mos_coord, min_exp=min_exp,
+             exp_grid_cs=grid_centers, legend=legend, markers=markers)
+    return ([nh_grid_centers, grid_centers], [nh_grid, exp_maps],
+            [srcs, mos_srcs], [coord.transpose(), mos_coord])
+
+
 def plot_exp_nhmaps(exp_map_folder, nh_data_file, telescope='XMM',
-                    ind_plot=False, pattern=None):
+                    ind_plot=False, pattern=None, min_exp=3):
     """Plot exposure maps with nh contours."""
     nh_grid_coordinates, nh_grid_centers, nh_grid = read_nhdata(nh_data_file)
     nh_levels_fine = np.logspace(22.7, 24.0, 101)
@@ -263,9 +331,9 @@ def plot_exp_nhmaps(exp_map_folder, nh_data_file, telescope='XMM',
             pattern = '*h_exp3.fits*'
     if telescope == 'XMM':
         (exp_maps, grid_centers, fig, axes) = main_expmaps(
-                exp_map_folder, pattern=pattern,
-                full_grid_l=nh_grid_coordinates[0],
-                full_grid_b=nh_grid_coordinates[1], plot=ind_plot)
+            exp_map_folder, pattern=pattern,
+            full_grid_l=nh_grid_coordinates[0],
+            full_grid_b=nh_grid_coordinates[1], plot=ind_plot)
         if ind_plot:
             plot_contours(
                 nh_grid_centers[0], nh_grid_centers[1], nh_grid, filled=True,
@@ -285,7 +353,14 @@ def plot_exp_nhmaps(exp_map_folder, nh_data_file, telescope='XMM',
                 vmin=5.0E+22, map_label=r'N_H (cm^{-2})',
                 title='Galactic Absorption')
     nh_levels_coarse = np.logspace(22.7, 24.0, 5)
-    exp_levels = np.logspace(3, 6.3, 100)
+    exp_levels = np.logspace(min_exp, np.log10(np.max(exp_map)), 100)
+    if telescope == 'Chandra':
+        grid_centers = [grid_centers[0][32:47, 32:47],
+                        grid_centers[1][32:47, 32:47]]
+        nh_grid_centers = [nh_grid_centers[0][32:47, 32:47],
+                           nh_grid_centers[1][32:47, 32:47]]
+        exp_map = exp_map.copy()[32:47, 32:47]
+        nh_grid = nh_grid.copy()[32:47, 32:47]
     fig, axes = plt.subplots()
     plot_contours(grid_centers[0], grid_centers[1], exp_map,
                   filled=True, axes=axes, map_levels=exp_levels,
@@ -295,7 +370,8 @@ def plot_exp_nhmaps(exp_map_folder, nh_data_file, telescope='XMM',
     if telescope == 'XMM':
         return exp_maps, nh_grid, grid_centers, fig, axes
     if telescope == 'Chandra':
-        return exp_map, nh_grid, grid_centers, fig, axes
+        return [exp_map], nh_grid, grid_centers, fig, axes
+    return None, None, None, None, None
 
 
 def plot_contours(grid_l, grid_b, map_image, name_axes=True, filled=False,
@@ -304,6 +380,9 @@ def plot_contours(grid_l, grid_b, map_image, name_axes=True, filled=False,
     """Plot contours."""
     if axes is None:
         fig, axes = plt.subplots()
+        return_fig = True
+    else:
+        return_fig = False
     axes.set_title(title)
     if name_axes:
         axes.set_xlabel('Galactic Longitude')
@@ -321,16 +400,22 @@ def plot_contours(grid_l, grid_b, map_image, name_axes=True, filled=False,
                                 colors='k')
         axes.clabel(contours, inline=True, fmt='%.0E')
         axes.legend()
-    return fig, axes
+    if return_fig:
+        return fig, axes
+    return None
 
 
 def plot_all(grid_centers, nh_map, pn_exp_map, pn_srcs, pn_src_pos,
              mos_exp_map=None, mos_srcs=None, mos_src_pos=None,
              candidate_pn_srcs=None, candidate_mos_srcs=None, markers=None,
-             color='#004488', legend=None):
+             color='#004488', legend=None, min_exp=3, exp_grid_cs=None):
     """Plot everything."""
     if mos_exp_map is not None:
-        pn_exp_map += 0.4*mos_exp_map
+        total_exp_map = pn_exp_map + 0.4*mos_exp_map
+    else:
+        total_exp_map = pn_exp_map.copy()
+    if exp_grid_cs is None:
+        exp_grid_cs = [grid_centers[0].copy(), grid_centers[1].copy()]
     if mos_srcs is not None:
         common_pn_bool = np.in1d(pn_srcs, mos_srcs)
         common_mos_bool = np.in1d(mos_srcs, pn_srcs)
@@ -349,18 +434,19 @@ def plot_all(grid_centers, nh_map, pn_exp_map, pn_srcs, pn_src_pos,
     if markers is None:
         markers = ['^', 'v', 'd']
     if legend is None:
-        legend = ['PN sources', 'MOS sources', 'PN and MOS sources']
-    exp_levels = np.logspace(3, np.log10(np.max(pn_exp_map)), 101)
+        legend = ['Only PN detections', 'Only MOS detections',
+                  'PN and MOS sources']
+    exp_levels = np.logspace(min_exp, np.log10(np.max(total_exp_map)), 101)
     fig, axes = plot_contours(
-        grid_centers[0], grid_centers[1], pn_exp_map, filled=True,
-        map_levels=exp_levels, map_label='Exposure')
+        exp_grid_cs[0], exp_grid_cs[1], total_exp_map, filled=True,
+        map_levels=exp_levels, map_label='Exposure (s)', vmin=10**min_exp)
     nh_levels = np.logspace(22.7, 24.0, 5)
     plot_contours(grid_centers[0], grid_centers[1], nh_map, name_axes=False,
                   axes=axes, map_levels=nh_levels, vmin=5.0E+22)
     axes.scatter(
         pn_src_pos[0][~common_pn_bool], pn_src_pos[1][~common_pn_bool],
-        marker=markers[0], facecolor='none', edgecolor=color)
-    if candidate_pn_mask:
+        marker=markers[0], facecolor='none', edgecolor=color, label=legend[0])
+    if candidate_pn_srcs is not None:
         axes.scatter(
             pn_src_pos[0][only_pn_candidate_mask],
             pn_src_pos[1][only_pn_candidate_mask], marker=markers[0],
@@ -368,22 +454,26 @@ def plot_all(grid_centers, nh_map, pn_exp_map, pn_srcs, pn_src_pos,
     if mos_srcs is not None:
         axes.scatter(
             mos_src_pos[0][~common_mos_bool], mos_src_pos[1][~common_mos_bool],
-            marker=markers[1], facecolor='none', edgecolor=color)
+            marker=markers[1], facecolor='none', edgecolor=color,
+            label=legend[1])
         axes.scatter(
             pn_src_pos[0][common_pn_bool], pn_src_pos[1][common_pn_bool],
-            marker=markers[2], facecolor='none', edgecolor=color)
-        if candidate_mos_mask:
-             axes.scatter(
+            marker=markers[2], facecolor='none', edgecolor=color,
+            label=legend[2])
+        if candidate_mos_srcs is not None:
+            axes.scatter(
                 mos_src_pos[0][only_mos_candidate_mask],
                 mos_src_pos[1][only_mos_candidate_mask], marker=markers[0],
                 facecolor=color, edgecolor=color)
-             axes.scatter(
+            axes.scatter(
                 pn_src_pos[0][common_pn_candidate_mask],
                 pn_src_pos[1][only_pn_candidate_mask], marker=markers[0],
                 facecolor=color, edgecolor=color)
-    
+    axes.legend()
+    return fig, axes
 
-def write_pimmsfile(nh, exposure, count_limit=250, telescope='xmm',
+
+def write_pimmsfile(nh_value, exposure, count_limit=250, telescope='xmm',
                     detector='pn', det_filter=None,
                     pimms_file='pimms_flux_calc.xco'):
     """Write file to run with pimms."""
@@ -394,7 +484,7 @@ def write_pimmsfile(nh, exposure, count_limit=250, telescope='xmm',
         else:
             det_filter = ''
     with open(pimms_file, 'w') as writer:
-        writer.writelines('model pl 2.0 ' + str(nh) + '\n')
+        writer.writelines('model pl 2.0 ' + str(nh_value) + '\n')
         writer.writelines('from ' + telescope + ' ' + detector + ' ' +
                           det_filter + ' 2.0-10.0\n')
         writer.writelines('inst flux ergs 2.0-10.0 unabsorbed\n')
@@ -416,14 +506,11 @@ def run_pimmsfile(file='pimms_flux_calc.xco', outfile='flux_output.txt'):
     return unabs_flux
 
 
-def match_exp_nh_maps(exp_map, nh_map, exp_grid_centers):
-    """Match the sizes/resolution of exposure and nh_maps."""
-    pass
-
-
 def get_lim_flux(exp_map, nh_map, telescope='XMM', detector='pn',
-                 det_filter='medium'):
+                 det_filter=None):
     """Get limiting flux."""
+    if det_filter is None and telescope == 'XMM':
+        det_filter = 'medium'
     lim_flux_grid = np.zeros_like(nh_map)
     num_rows, num_cols = nh_map.shape
     for i in range(num_rows):
@@ -441,7 +528,10 @@ def get_lim_flux(exp_map, nh_map, telescope='XMM', detector='pn',
 def get_lim_flux_list(exp_maps, nh_map, telescope='XMM', detector='pn'):
     """Get limiting flux of a list."""
     lim_flux_list = []
-    filter_list = ['thin', 'medium', 'thick']
+    if telescope == 'XMM':
+        filter_list = ['thin', 'medium', 'thick']
+    else:
+        filter_list = [None]
     for i, exp_map in enumerate(exp_maps):
         if np.max(exp_map) > 1000:
             lim_flux_grid = get_lim_flux(exp_map, nh_map, telescope, detector,
@@ -449,33 +539,79 @@ def get_lim_flux_list(exp_maps, nh_map, telescope='XMM', detector='pn'):
             lim_flux_list.append(lim_flux_grid)
         else:
             lim_flux_list.append(np.ones_like(exp_map)*np.nan)
-    return lim_flux_list
+    # Lim flux of the combined spectra is similar to parallel resistors
+    lim_flux_combined_inv = np.zeros_like(nh_map)
+    for lim_flux in lim_flux_list:
+        lim_flux[np.isnan(lim_flux)] = np.inf
+        lim_flux_combined_inv += 1.0/lim_flux
+    lim_flux_combined_inv[lim_flux_combined_inv == 0] = np.nan
+    return 1.0/lim_flux_combined_inv, lim_flux_list
 
 
-def estimate_agn(lim_flux_list, n_s14, grid_area):
+def plot_lim_flux(grid, lim_flux_map):
+    """Plot limitting flux."""
+    min_flux = np.min(lim_flux_map[~np.isnan(lim_flux_map)])
+    max_flux = np.max(lim_flux_map[~np.isnan(lim_flux_map)])
+    flux_levels = np.logspace(np.log10(min_flux), np.log10(max_flux), 101)
+    plot_contours(grid[0], grid[1], lim_flux_map, filled=True,
+                  map_levels=flux_levels, vmin=min_flux,
+                  map_label=r'Limiting flux (ergs s$^{-1}$ cm$^{-2})')
+    plt.tight_layout()
+
+
+def estimate_agn(lim_flux_map, interp_fn, grid_area):
     """"Estimate the number of AGN from limiting flux map."""
-    num_agn_all = 0
-    for lim_flux_map in lim_flux_list:
-        num_agn_perbin = n_s14/(lim_flux_map/1.0E-14)**1.5*grid_area
-        num_agn_all += np.sum(num_agn_perbin[~np.isnan(num_agn_perbin)])
-    return num_agn_all
+    n_s14 = 10**interp_fn(np.log10(lim_flux_map))
+    agn_perbin = n_s14/(lim_flux_map/1.0E-14)**1.5*grid_area
+    return np.sum(agn_perbin[~np.isnan(agn_perbin)])
 
 
 def main():
     """Main function."""
     # XMM telescope
-    xmm_pn_exp_maps, xmm_nh_grid = plot_exp_nhmaps(
-        exp_map_folder=('/Volumes/Pavan_Work_SSD/GalacticBulge_4XMM_Chandra/' +
+    agn_interp_data = np.loadtxt('/Users/pavanrh/Documents/UofA_projects/' +
+                                 'GalacticBulge/Total_AGN_flux.xls',
+                                 skiprows=1)
+    agn_interp = interpolate.CubicSpline(np.log10(agn_interp_data[:, 0]),
+                                         np.log10(agn_interp_data[:, 1]))
+    nh_file = ('/Volumes/Pavan_Work_SSD/GalacticBulge_4XMM_Chandra/' +
+               'data/gal_coords_NH.csv')
+    exp_map_folders = [('/Volumes/Pavan_Work_SSD/GalacticBulge_4XMM_Chandra/' +
                         'data/xmm_expmaps/pn_maps/'),
-        nh_data_file=('/Volumes/Pavan_Work_SSD/GalacticBulge_4XMM_Chandra/' +
-                      'data/gal_coords_NH.csv'))
-    xmm_lim_flux_list = []
-    xmm_filters
-    for exp_map in xmm_exp_maps:
-        if np.max(exp_map) > 1000:
-            lim_flux_grid = 
-    chandra_exp_maps, chandra_nh_grid = plot_exp_nhmaps(
-        exp_map_folder='/Volumes/Pavan_work/chandra_deep2/all_expmaps_1ks/',
-        nh_data_file=('/Volumes/Pavan_Work_SSD/GalacticBulge_4XMM_Chandra/' +
-                      'data/gal_coords_NH.csv'),
-        telescope='Chandra')  # Will take lots of time
+                       ('/Volumes/Pavan_Work_SSD/GalacticBulge_4XMM_Chandra/' +
+                        'data/xmm_expmaps/mos_maps/'),
+                       '/Volumes/Pavan_Work_SSD/Test_folder']
+    pattern_list = ['*5000.FTZ', '*5000.FTZ', 'sgr*']
+    telescope_arr = ['XMM', 'XMM', 'Chandra']
+    detector_arr = ['pn', 'mos', 'acis-i']
+    min_exps = [3, 3, 4]
+    exp_maps_arr = []
+    fig_arr = []
+    axes_arr = []
+    lim_flux_total_arr = []
+    lim_flux_perfilter_arr = []
+    agn_arr = []
+    for i, folder in enumerate(exp_map_folders):
+        exp_maps, nh_grid, grid_centers, fig, axes = plot_exp_nhmaps(
+            exp_map_folder=folder, nh_data_file=nh_file,
+            telescope=telescope_arr[i], pattern=pattern_list[i],
+            min_exp=min_exps[i])
+        if i == 0:
+            nh_grid_xmm = nh_grid.copy()
+            grid_centers_xmm = copy.copy(grid_centers)
+        exp_maps_arr.append(exp_maps)
+        fig_arr.append(fig)
+        axes_arr.append(axes)
+
+        lim_flux_total, lim_flux_perfilter = get_lim_flux_list(
+            exp_maps, nh_grid, telescope=telescope_arr[i],
+            detector=detector_arr[i])
+        plot_lim_flux(grid_centers, lim_flux_total)
+        lim_flux_total_arr.append(lim_flux_total)
+        lim_flux_perfilter_arr.append(lim_flux_perfilter)
+
+        num_agn = estimate_agn(lim_flux_total, agn_interp, (6.0/79.0)**2)
+        agn_arr.append(num_agn)
+
+    return (nh_grid_xmm, grid_centers_xmm, exp_maps_arr, lim_flux_total_arr,
+            lim_flux_perfilter_arr, agn_arr)

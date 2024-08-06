@@ -10,13 +10,13 @@
 * Simulation product will be
  Count rate in CHANDRA ACIS-I
    <--- Use 'INSTRUMENT' command to switch to another instrument
-! PIMMS > model pl 2.0 2.3e+23
-! PIMMS > from XMM pn medium 2.0-10.0
+! PIMMS > model pl 2.0 5.08e+22
+! PIMMS > from Chandra acis-i  2.0-10.0
 ! PIMMS > inst flux ergs 2.0-10.0 unabsorbed
-! PIMMS > go 0.016353158848728608
-* For power law model with photon index = 2.0000; NH =  2.300E+23
-  and  1.635E-02 cps in XMM PN MEDIUM (    2.000-   10.000keV)
-%!% Pile-up corrected PATTERN=0-4 rate in 5 arcmin region assumed
-  (Internal model normalization =  1.783E-04)
-* PIMMS predicts an unabsorbed flux (      2.000-     10.000keV) of  4.598E-13 ergs/cm/cm/s
+! PIMMS > go 0.005869080937462196
+* For power law model with photon index = 2.0000; NH =  5.080E+22
+  and  5.869E-03 cps in CHANDRA ACIS-I  (    2.000-   10.000keV)
+%!% No pile-up correction will be applied
+  (Internal model normalization =  8.907E-05)
+* PIMMS predicts an unabsorbed flux (      2.000-     10.000keV) of  2.297E-13 ergs/cm/cm/s
 ! PIMMS > exit
