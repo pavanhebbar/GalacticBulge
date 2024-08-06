@@ -12,13 +12,16 @@ Functionalities needed.
 
 import copy
 import os
-import glob2
 import warnings
+import glob2
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.colors import Normalize
 import seaborn as sns
 from astropy.io import fits
+from astropy.stats import sigma_clipped_stats
 from scipy.ndimage import median_filter
+import xspec
 
 
 # Plot functions
@@ -42,7 +45,7 @@ def set_plotparams(plottype):
         plt.rcParams['xtick.direction'] = 'inout'
         plt.rcParams['ytick.direction'] = 'inout'
     elif plottype == 'presentation':
-        plt.rcParams["figure.figsize"] = (4, 3)
+        plt.rcParams["figure.figsize"] = (8, 6)
         plt.rcParams["axes.titlesize"] = 16
         plt.rcParams["axes.labelsize"] = 14
         plt.rcParams["lines.linewidth"] = 3
@@ -94,14 +97,18 @@ def set_plotparams(plottype):
         plt.rcParams['ytick.direction'] = 'in'
 
 
-def plotline_scatter(xdatas, ydatas, pl_types=None, axs=None, xlabel=None,
+def plotline_scatter(xdatas, ydatas,
+                     pl_types=None, axs=None, xlabel=None,
                      ylabel=None, pl_labels=None, styles=None, colors=None,
-                     yscale='linear', title=None, ylim=None):
+                     yscale='linear', title=None, ylim=None, figsize=None,
+                     cmap='cividis_r', zdatas=None, zdata_label=None):
     """Plot line, step and scatter plots."""
+    if zdatas is None:
+        zdatas = [None]*len(ydatas)
     if pl_types is None:
         pl_types = ['line']*len(ydatas)
     if axs is None:
-        fig, axs = plt.subplots()
+        fig, axs = plt.subplots(figsize=figsize)
     if pl_labels is None:
         pl_labels = [None]*len(ydatas)
     if styles is None:
@@ -132,12 +139,22 @@ def plotline_scatter(xdatas, ydatas, pl_types=None, axs=None, xlabel=None,
         elif pl_type == 'scatter':
             if styles[i] == '-':
                 styles[i] = 'o'
-            axs.scatter(xdatas[i], ydatas[i], marker=styles[i],
-                        label=pl_labels[i], color=colors[i])
+            if zdatas is not None:
+                sc_plot = axs.scatter(
+                    xdatas[i], ydatas[i], c=zdatas[i], marker=styles[i],
+                    label=pl_labels[i], cmap=cmap,
+                    norm=Normalize(-3, 20, True))
+                cbar = plt.colorbar(mappable=sc_plot, ax=axs,
+                                    label=zdata_label)
+            else:
+                axs.scatter(xdatas[i], ydatas[i], marker=styles[i],
+                            label=pl_labels[i], color=colors[i])
         elif pl_type == 'step':
-            axs.step(xdatas[i], ydatas[i], where='mid', linestyle=styles[i],
+            ydatas[i] = np.append(ydatas[i], ydatas[i].copy()[-1])
+            axs.step(xdatas[i], ydatas[i], where='post', linestyle=styles[i],
                      label=pl_labels[i], color=colors[i])
         else:
+            print(pl_types)
             raise ValueError("pl_type can only be 'line' or 'scatter'. Got " +
                              pl_type)
     axs.legend()
@@ -257,7 +274,11 @@ def plot_subplots(numrows, numcols, xdatas_arr, ydatas_arr, title=None,
     fig.suptitle(title)
     axes = axes.reshape(numrows, numcols)
     plt.rcParams["legend.fontsize"] = (
-        float(plt.rcParams["legend.fontsize"]) - 5*(numcols - 1))
+        float(plt.rcParams["legend.fontsize"]) - 4*(numcols-1))
+    print(plt.rcParams["legend.fontsize"])
+    if numrows == 1 and numcols == 1:
+        initial_figsize = plt.rcParams["figure.figsize"]
+        plt.rcParams["figure.figsize"] = (12, 9)
 
     for i in range(numrows):
         for j in range(numcols):
@@ -279,7 +300,9 @@ def plot_subplots(numrows, numcols, xdatas_arr, ydatas_arr, title=None,
                 print('subplot type can be linescatter or hist')
     plt.tight_layout()
     plt.rcParams["legend.fontsize"] = (
-        float(plt.rcParams["legend.fontsize"]) + 5*(numcols - 1))
+        float(plt.rcParams["legend.fontsize"]) + 4*(numcols-1))
+    if numrows == 1 and numcols == 1:
+        plt.rcParams["figure.figsize"] = initial_figsize
     return fig, axes
 
 
@@ -337,7 +360,9 @@ def load_sim_xmmspec(folder, background=False, numsim=20000, basename=None):
 def load_xmmspec_observed(folder, background=False):
     """Load Observed XMM spec."""
     pn_specfiles = glob2.glob(folder + '*PN_combined_src_grp.ds')
+    print('# PN files init:', len(pn_specfiles))
     mos_specfiles = glob2.glob(folder + '*MOS_combined_src_grp.ds')
+    print('# PN files init:', len(pn_specfiles))
     num_combined = len(glob2.glob(folder + '*PN_MOS_combined_src.png'))
     num_sources = len(pn_specfiles) + len(mos_specfiles) - num_combined
     pn_specs = np.zeros((num_sources, 4096), dtype=float)
@@ -542,13 +567,13 @@ def plot_spec_summary(sim_src_spec_arr, sim_bg_spec_arr, obs_src_spec_arr,
         (obs_norm_spec, obs_netcounts, obs_bgcounts,
          obs_detmask) = get_summary_det(
             obs_src_spec_arr[i], obs_bg_spec_arr[i], ebins_arr[i], e_range,
-            copy.copy(det_mask_obs_arr[i]))[:4]
+            copy.copy(det_mask_obs_arr[i]), 3.0)[:4]
         norm_specs.append([sim_norm_spec, obs_norm_spec])
         netcounts.append([sim_netcounts, obs_netcounts])
         bgcounts.append([sim_bgcounts, obs_bgcounts])
         ebins_lowhigh_indices.append([en_lowindex, en_highindex])
-        det_mask_sim_arr.append(sim_detmask)
-        det_mask_obs_arr.append(obs_detmask)
+        det_mask_sim_arr[i] = sim_detmask
+        det_mask_obs_arr[i] = obs_detmask
         if plot:
             ebins_refined.append(ebins_arr[i][en_lowindex:en_highindex])
             filter_size = int(0.2/(ebins_arr[i][en_lowindex+1] -
@@ -578,10 +603,9 @@ def plot_spec_summary(sim_src_spec_arr, sim_bg_spec_arr, obs_src_spec_arr,
         plotline_scatter([ebins_refined[i], ebins_refined[i]],
                          norm_spec_sim_obs, xlabel='Energy (keV)',
                          ylabel='Smoothed mean normalized spectra',
-                         pl_labels=['Simulated ' + det_names[i] + ' spectra',
-                                    'Observed ' + det_names[i] + ' spectra'],
-                         title=('Simulated and Observed ' + det_names[i] +
-                                ' spectra'))
+                         pl_labels=['Sim. ' + det_names[i] + ' spectra',
+                                    'Obs. ' + det_names[i] + ' spectra'],
+                         figsize=(12, 9))
 
     hist1D_joined_list = join_lists_3d(netcounts_forplot,
                                        bg_net_ratio_forplot,
@@ -589,7 +613,6 @@ def plot_spec_summary(sim_src_spec_arr, sim_bg_spec_arr, obs_src_spec_arr,
     plot_subplots(
         len(norm_specs_forplot), 3, hist1D_joined_list,
         [[None]*3]*len(norm_specs_forplot),
-        title='1D histograms of net and background counts',
         xlabel_arr=join_string_lists(
             ['log (Net counts)', 'log (Bg counts/Net counts)',
              'Signal-to-Noise Ratio'], det_names),
@@ -626,11 +649,11 @@ def get_line_cont_counts(src_spec, bg_spec, ebins, net_spec=None,
     if cont2_range is None:
         cont2_range = [7.2, 7.6]
     sim_fe_net = get_counts_enrange(net_spec, range_fe, ebins,
-                                    floor_counts=0)[0]
+                                    floor_counts=None)[0]
     sim_fe_src = get_counts_enrange(src_spec, range_fe, ebins,
-                                    floor_counts=0)[0]
+                                    floor_counts=None)[0]
     sim_fe_bg = get_counts_enrange(bg_spec, range_fe, ebins,
-                                   floor_counts=0)[0]
+                                   floor_counts=None)[0]
 
     sim_cont1_net = get_counts_enrange(net_spec, cont1_range, ebins,
                                        floor_counts=0)[0]
@@ -660,13 +683,13 @@ def get_colors_basic(counts_line_net, counts_cont1_net, counts_cont2_net,
     return colors
 
 
-def get_colors_binned(colors, src_prop, srcprop_bins, mask=None):
+def get_colors_binned(colors, src_prop, srcprop_bins):
     """Get expected color for given bins."""
     mean_colors = np.zeros(len(srcprop_bins)-1)
     median_colors = np.zeros(len(srcprop_bins)-1)
     colors_std = np.zeros(len(srcprop_bins)-1)
     for i, bin_edge in enumerate(srcprop_bins[:-1]):
-        mean_colors[i], colors_std[i], median_colors[i] = get_colors_perbin(
+        mean_colors[i], median_colors[i], colors_std[i] = get_colors_perbin(
             colors, src_prop, [bin_edge, srcprop_bins[i+1]])
     return mean_colors, colors_std, median_colors
 
@@ -677,7 +700,8 @@ def get_colors_perbin(colors, src_prop, bin_edges):
                                                   src_prop < bin_edges[1]),
                                    np.isfinite(colors)))
     bin_colors = colors[mask]
-    return np.mean(bin_colors), np.std(bin_colors), np.median(bin_colors)
+    # return np.mean(bin_colors), np.median(bin_colors), np.std(bin_colors)
+    return sigma_clipped_stats(bin_colors, sigma=5)
 
 
 def bin_colors_withprop(colors, prop_list, prop_listnames, obs_colors,
@@ -729,7 +753,9 @@ def bin_colors_withprop(colors, prop_list, prop_listnames, obs_colors,
 
 
 def load_alldata(response_paths, sim_spec_paths, obs_spec_paths, range_fe=None,
-                 range_cont1=None, range_cont2=None, en_range=None):
+                 range_cont1=None, range_cont2=None, en_range=None,
+                 both_sims=False, sim_basename='msp_highNH_',
+                 obs_basename='ip_'):
     """Main function to process the entire dataset."""
     det_enbins_arr = []
     det_ecenters_arr = []
@@ -758,10 +784,16 @@ def load_alldata(response_paths, sim_spec_paths, obs_spec_paths, range_fe=None,
         if i == 0:
             ([sim1_mask, sim2_mask], [sim1_specs, sim2_specs],
              [sim1_bgs, sim2_bgs]) = load_sim_xmmspec(
-                sim_spec_paths[i], background=True, basename='msp_highNH_')
-            (source_nums, [obs1_mask, obs1_specs, obs1_bgs],
-             [obs2_mask, obs2_specs, obs2_bgs]) = load_xmmspec_observed(
-                obs_spec_paths[i], background=True)
+                sim_spec_paths[i], background=True, basename=sim_basename)
+            if both_sims:
+                ([obs1_mask, obs2_mask], [obs1_specs, obs2_specs],
+                 [obs1_bgs, obs2_bgs]) = load_sim_xmmspec(
+                    obs_spec_paths[i], background=True, basename=obs_basename)
+                source_nums = np.arange(len(obs1_mask))
+            else:
+                (source_nums, [obs1_mask, obs1_specs, obs1_bgs],
+                 [obs2_mask, obs2_specs, obs2_bgs]) = load_xmmspec_observed(
+                    obs_spec_paths[i], background=True)
             sim_srcspec_arr.append(sim1_specs)
             sim_srcspec_arr.append(sim2_specs)
             sim_bgspec_arr.append(sim1_bgs)
@@ -778,9 +810,15 @@ def load_alldata(response_paths, sim_spec_paths, obs_spec_paths, range_fe=None,
         elif i == 2:
             sim_specs, sim_bgs = load_chandraspec_sim(
                 sim_spec_paths[i], background=True, num_sim=10000,
-                basename='msp_highNH_')
-            src_names, obs_specs, obs_bgs = load_chandraspec_obs(
-                obs_spec_paths[i])
+                basename=sim_basename)
+            if both_sims:
+                obs_specs, obs_bgs = load_chandraspec_sim(
+                    obs_spec_paths[i], background=True, num_sim=10000,
+                    basename=obs_basename)
+                src_names = np.arange(len(obs_specs))
+            else:
+                src_names, obs_specs, obs_bgs = load_chandraspec_obs(
+                    obs_spec_paths[i])
             sim_mask = np.ones(len(sim_specs), dtype=bool)
             obs_mask = np.ones(len(obs_specs), dtype=bool)
             sim_srcspec_arr.append(sim_specs)
@@ -875,14 +913,11 @@ def getcolor_prop_singledet(det_ebins, det_srcspecs, det_bgspecs,
 
 def get_bincenters(bins):
     """Get center of bins."""
-    return 0.5*(bins[1:] + bins[:-1])
+    return bins
 
 
 def getcolor_prop_alldet(spec_summary, compare_det=False):
-    """Get colors in all detectors and plot relevant figure.
-
-    Spectra and values will be already masked.
-    """
+    """Get colors in all detectors and plot relevant figure."""
     ebins_arr = spec_summary['ebins'][0]
     specs = spec_summary['specs']
     spec_masks = spec_summary['spec_masks']
@@ -929,36 +964,36 @@ def getcolor_prop_alldet(spec_summary, compare_det=False):
                     get_bincenters(sim_colors_dict_arr[2]['prop_bins'][i])]]],
                 [[[
                     sim_colors_dict_arr[0]['colors'],
-                    (sim_colors_dict_arr[0]['color_stat'][1][i] +
+                    (sim_colors_dict_arr[0]['color_stat'][0][i] +
                      2*sim_colors_dict_arr[0]['color_stat'][2][i]),
-                    (sim_colors_dict_arr[0]['color_stat'][1][i] -
+                    (sim_colors_dict_arr[0]['color_stat'][0][i] -
                      2*sim_colors_dict_arr[0]['color_stat'][2][i])], [
                     obs_colors_dict_arr[0]['colors'],
-                    (sim_colors_dict_arr[0]['color_stat'][1][i] +
+                    (sim_colors_dict_arr[0]['color_stat'][0][i] +
                      2*sim_colors_dict_arr[0]['color_stat'][2][i]),
-                    (sim_colors_dict_arr[0]['color_stat'][1][i] -
+                    (sim_colors_dict_arr[0]['color_stat'][0][i] -
                      2*sim_colors_dict_arr[0]['color_stat'][2][i])]],
                  [[
                     sim_colors_dict_arr[1]['colors'],
-                    (sim_colors_dict_arr[1]['color_stat'][1][i] +
+                    (sim_colors_dict_arr[1]['color_stat'][0][i] +
                      2*sim_colors_dict_arr[1]['color_stat'][2][i]),
-                    (sim_colors_dict_arr[1]['color_stat'][1][i] -
+                    (sim_colors_dict_arr[1]['color_stat'][0][i] -
                      2*sim_colors_dict_arr[1]['color_stat'][2][i])], [
                     obs_colors_dict_arr[1]['colors'],
-                    (sim_colors_dict_arr[1]['color_stat'][1][i] +
+                    (sim_colors_dict_arr[1]['color_stat'][0][i] +
                      2*sim_colors_dict_arr[1]['color_stat'][2][i]),
-                    (sim_colors_dict_arr[1]['color_stat'][1][i] -
+                    (sim_colors_dict_arr[1]['color_stat'][0][i] -
                      2*sim_colors_dict_arr[1]['color_stat'][2][i])]],
                  [[
                     sim_colors_dict_arr[2]['colors'],
-                    (sim_colors_dict_arr[2]['color_stat'][1][i] +
+                    (sim_colors_dict_arr[2]['color_stat'][0][i] +
                      2*sim_colors_dict_arr[2]['color_stat'][2][i]),
-                    (sim_colors_dict_arr[2]['color_stat'][1][i] -
+                    (sim_colors_dict_arr[2]['color_stat'][0][i] -
                      2*sim_colors_dict_arr[2]['color_stat'][2][i])], [
                     obs_colors_dict_arr[2]['colors'],
-                    (sim_colors_dict_arr[2]['color_stat'][1][i] +
+                    (sim_colors_dict_arr[2]['color_stat'][0][i] +
                      2*sim_colors_dict_arr[2]['color_stat'][2][i]),
-                    (sim_colors_dict_arr[2]['color_stat'][1][i] -
+                    (sim_colors_dict_arr[2]['color_stat'][0][i] -
                      2*sim_colors_dict_arr[2]['color_stat'][2][i])]]],
                 subp_types_arr=[['linescatter']*2]*3,
                 pl_types_arr=[[['scatter', 'step', 'step']]*2]*3,
@@ -967,56 +1002,79 @@ def getcolor_prop_alldet(spec_summary, compare_det=False):
                      'Observed ' + prop_names[i]], det_names),
                 ylabel_arr=[['Simulated source colors',
                              'Observed source colors']]*3,
-                pl_labels_arr=[[['Colors', r'Median + 2.0$\sigma$',
-                               r'Median - 2.0$\sigma$']]*2]*3,
+                pl_labels_arr=[[['Colors', r'Mean + 2.0$\sigma$',
+                               r'Mean - 2.0$\sigma$']]*2]*3,
                 ylim_arr=[[(0, 5)]*2]*3)
     return sim_colors_dict_arr, obs_colors_dict_arr
 
 
-def get_candidate_src_nums_det(obs_src_nums, obs_det_mask, sim_color_dict,
-                               obs_color_dict, min_counts):
-    """Get src nums of quiescent sources for given detector"""
-    obs_netcounts = obs_color_dict['prop_list'][0]
-    netcount_bins = sim_color_dict['prop_bins'][0]
-    obs_colors = obs_color_dict['colors']
-    color_median, color_std = sim_color_dict['color_stat'][1:]
-    for i, lower_bin in enumerate(netcount_bins):
-        if lower_bin < min_counts:
-            continue
-        if i == len(netcount_bins) - 2:
-            upper_bin = np.max(obs_netcounts) + 10
-            median_color = color_median[-1]
-            std_color = color_std[-1]
-        else:
-            upper_bin = netcount_bins[i+1]
-            median_color = color_median[i]
-            std_color = color_std[i]
-        print(lower_bin, median_color + std_color)
-        int_args = np.where(np.logical_and(
-            np.logical_and(obs_netcounts >= lower_bin,
-                           obs_netcounts < upper_bin),
-            obs_colors < median_color + std_color))[0]
-        if i == 0:
-            interested_args = int_args.copy()
-        else:
-            interested_args = np.append(interested_args.copy(), int_args)
-    return interested_args, obs_src_nums[obs_det_mask]
-
-
-def get_candidate_src_nums_alldet(spec_summary, sim_color_dict_arr,
-                                  obs_color_dict_arr, min_count_arr=None):
-    """Get source nums for all detectors."""
-    interested_args_alldet = []
-    interested_sources_alldet = []
-    if min_count_arr is None:
-        min_count_arr = [400, 400, 250]
-    for i, obs_color_dict in enumerate(obs_color_dict_arr):
-        interested_args, interested_srcs = get_candidate_src_nums_det(
-            spec_summary['src_nums'][i], spec_summary['spec_masks'][1][i],
-            sim_color_dict_arr[i], obs_color_dict, min_count_arr[i])
-        interested_args_alldet.append(interested_args)
-        interested_sources_alldet.append(interested_srcs)
-    return interested_args_alldet, interested_sources_alldet
+def process_singledet1(det_ebins, det_srcspecs, det_bgspecs, det_mask,
+                       det_name, det_obs_ebins=None, det_obs_srcspecs=None,
+                       det_obs_bgspecs=None, det_obsmask=None, range_fe=None):
+    """Process single detector data."""
+    ([netcounts, obs_netcounts],
+     [bgcounts, obs_bgcounts], lowindex, highindex) = plot_spec_summary(
+        det_srcspecs, det_bgspecs, det_obs_srcspecs, det_obs_bgspecs,
+        det_ebins, en_range=[2.0, 10.0], det_mask_sim=det_mask,
+        det_mask_obs=det_obsmask)
+    ([netcounts_aroundfe, obs_netcounts_aroundfe],
+     [bgcounts_aroundfe, obs_bgcounts_aroundfe], aroundfe_lowindex,
+     aroundfe_highindex) = plot_spec_summary(
+        det_srcspecs, det_bgspecs, det_obs_srcspecs, det_obs_bgspecs,
+        det_ebins, en_range=[5.8, 7.6], det_mask_sim=det_mask,
+        det_mask_obs=det_obsmask, det=det_name)
+    bg_net_ratio = bgcounts/netcounts
+    obs_bg_netratio = obs_bgcounts/obs_netcounts
+    bg_net_ratio_aroundfe = bgcounts_aroundfe/netcounts_aroundfe
+    obs_bg_netratio_aroundfe = obs_bgcounts_aroundfe/obs_netcounts_aroundfe
+    ([fe_net, fe_src, fe_bg], [cont1_net, cont1_src, cont1_bg],
+     [cont2_net, cont2_src, cont2_bg]) = get_line_cont_counts(
+        det_srcspecs, det_bgspecs, det_ebins, range_fe=range_fe)
+    ([obs_fe_net, obs_fe_src, obs_fe_bg],
+     [obs_cont1_net, obs_cont1_src, obs_cont1_bg],
+     [obs_cont2_net, obs_cont2_src, obs_cont2_bg]) = get_line_cont_counts(
+        det_obs_srcspecs, det_obs_bgspecs, det_obs_ebins, range_fe=range_fe)
+    det_colors = get_colors_basic(fe_net, cont1_net, cont2_net, mask=det_mask)
+    obs_det_colors = get_colors_basic(obs_fe_net, obs_cont1_net, obs_cont2_net)
+    netcount_bins = 10**(np.linspace(1, 5, 21))
+    netcount_aroundfe_bins = 10**(np.linspace(0, 4, 21))
+    bg_net_ratio_bins = 10**(np.linspace(-2, 1, 21))
+    bg_net_ratio_aroundfe_bins = 10**(np.linspace(-2, 1, 21))
+    (mean_colors_withprop, std_colors_withprop,
+     median_colors_withprop) = bin_colors_withprop(
+        det_colors, [netcounts, netcounts_aroundfe, bg_net_ratio,
+                     bg_net_ratio_aroundfe],
+        ['Net counts (2-10 keV)', 'Net counts (5.8-7.6 keV)',
+         'Bg/net ratio (2-10 keV)', 'Bg/net ratio (5.8-7.6 keV)'],
+        obs_det_colors, [obs_netcounts, obs_netcounts_aroundfe,
+                         obs_bg_netratio, obs_bg_netratio_aroundfe],
+        [netcount_bins, netcount_aroundfe_bins, bg_net_ratio_bins,
+         bg_net_ratio_aroundfe_bins], plot=True, plot_det=det_name)[1:]
+    sim_det_dict = {'counts_2_10': [netcounts, bgcounts],
+                    'counts_aroundfe': [netcounts_aroundfe, bgcounts],
+                    'lowhigh_indices': [lowindex, highindex,
+                                        aroundfe_lowindex, aroundfe_highindex],
+                    'fe_cont_netcounts': [fe_net, cont1_net, cont2_net],
+                    'fe_cont_bgcounts': [fe_bg, cont1_bg, cont2_bg],
+                    'fe_cont_srccounts': [fe_src, cont1_src, cont2_src],
+                    'prop_bins': [netcount_bins, netcount_aroundfe_bins,
+                                  bg_net_ratio_bins,
+                                  bg_net_ratio_aroundfe_bins],
+                    'mean_std_colors_withprop': [
+                        mean_colors_withprop, std_colors_withprop,
+                        median_colors_withprop]}
+    obs_det_dict = {'counts_2_10': [obs_netcounts, obs_bgcounts],
+                    'counts_aroundfe': [obs_netcounts_aroundfe,
+                                        obs_bgcounts_aroundfe],
+                    'lowhigh_indices': [lowindex, highindex,
+                                        aroundfe_lowindex, aroundfe_highindex],
+                    'fe_cont_netcounts': [obs_fe_net, obs_cont1_net,
+                                          obs_cont2_net],
+                    'fe_cont_bgcounts': [obs_fe_bg, obs_cont1_bg,
+                                         obs_cont2_bg],
+                    'fe_cont_srccounts': [obs_fe_src, obs_cont1_src,
+                                          obs_cont2_src]}
+    return sim_det_dict, obs_det_dict
 
 
 def combine_pn_mos_prop(pn_prop, mos_prop, pn_mask, mos_mask):
