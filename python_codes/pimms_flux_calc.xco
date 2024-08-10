@@ -1,5 +1,5 @@
-model pl 2.0 5.08e+22
-from Chandra acis-i  2.0-10.0
+model pl 2.0 5.62e+22
+from XMM pn medium 2.0-10.0
 inst flux ergs 2.0-10.0 unabsorbed
-go 0.005869080937462196
+go 0.0762005079457125
 exit
