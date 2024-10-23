@@ -63,10 +63,11 @@ def get_bg_arf_resp(spectra, bg_directory='./', arf_directory='./',
     print(spectra_header['NAXIS2'])
     if spectra_header['NAXIS2'] == 800:
         if resp_dir2 is None:
-            resp_dir2 = ('/Volumes/Pavan_Work_SSD/GalacticBulge_4XMM_Chandra/' +
-                         'data/XMM_responses/MOS_15eV/')
-        resp_directory = resp_dir2
-    #    return '15eVbin', '15eVbin', '15eVbin'
+            resp_dir2 = (
+                '/Volumes/Pavan_Work_SSD/GalacticBulge_4XMM_Chandra/' +
+                'data/XMM_responses/MOS_15eV/')
+    #    resp_directory = resp_dir2
+        return '15eVbin', '15eVbin', '15eVbin'
     bg_file = bg_directory + spectra_header['BACKFILE']
     arf_file = arf_directory + spectra_header['ANCRFILE']
     resp_file = resp_directory+spectra_header['RESPFILE']
@@ -108,22 +109,22 @@ def get_combine_det_inputs(source_num, detector, src_dir='./', rmf_dir='./'):
         bg_specs = []
         arf_files = []
         rmf_files = []
-        invalid_exp_srcfiles = []
-        srcfiles_15evbins = []
+        # invalid_exp_srcfiles = []
+        # srcfiles_15evbins = []
         for spec in src_specs:
             bg_file, arf_file, rmf_file = get_bg_arf_resp(
                 spec, bg_directory=det_folder+'/',
                 arf_directory=det_folder+'/',
                 resp_directory=rmf_dir+detector+'/')
             print(bg_file, spec)
-            if bg_file != 'Invalid' and bg_file != '15eVbin':
+            if bg_file not in ('Invalid', '15eVbin'):
                 src_specs_refined.append(spec)
                 bg_specs.append(bg_file)
                 arf_files.append(arf_file)
                 rmf_files.append(rmf_file)
             else:
                 print(bg_file)
-        
+
         print(len(src_specs_refined), len(bg_specs), len(arf_files),
               len(rmf_files))
 
@@ -179,6 +180,19 @@ def change_header_intrume(fits_file, updated_intrume):
     fits_hdutables.close()
 
 
+def change_header_back_respfile(fits_file):
+    """"Change the response and background file."""
+    fits_hdutables = fits.open(fits_file, mode='update')
+    filename = os.path.basename(fits_file)
+    src_num, det = filename.split('_')[:2]
+    resp_file = src_num + '_' + det + '_combined_rsp_grp.ds'
+    back_file = src_num + '_' + det + '_combined_bkg_grp.ds'
+    fits_hdutables[1].header['RESPFILE'] = resp_file
+    fits_hdutables[1].header['BACKFILE'] = back_file
+    fits_hdutables.flush()
+    fits_hdutables.close()
+
+
 def insert_header_key(fits_file, keyword, key_value):
     """Insert keyword."""
     fits_hdutables = fits.open(fits_file, mode='update')
@@ -194,12 +208,12 @@ def merge_xmmspec(src_spec_str, bkg_spec_str, arf_spec_str,
                   rmf_spec_str, src_num=None, det=None, outputdir='./'):
     """Merge XMM spectra."""
     # Get source number and detector name if not given
-    if src_spec_str == ' ' or src_spec_str == '':
+    if src_spec_str in ('', ' '):
         print('Hello')
         return 0
-    else:
-        print('String = ', src_spec_str)
-        print('Length = ', len(src_spec_str))
+
+    print('String = ', src_spec_str)
+    print('Length = ', len(src_spec_str))
     if src_num is None or det is None:
         src_spec0_split = src_spec_str.split(' ')
         if src_num is None:
@@ -213,9 +227,9 @@ def merge_xmmspec(src_spec_str, bkg_spec_str, arf_spec_str,
     output_base_str = outputdir + src_num + '_' + det + '_combined_'
 
     # if glob2.glob(output_base_str+'src_grp1_*cts.ds') != []:
-      #  print('Output grouped spectra already exists')
-      #  return 0
-    #print(glob2.glob(output_base_str+'src_grp1_*cts.ds'))
+    #     print('Output grouped spectra already exists')
+    #     return 0
+    # print(glob2.glob(output_base_str+'src_grp1_*cts.ds'))
 
     subprocess.run(['epicspeccombine', 'pha='+src_spec_str,
                     'bkg='+bkg_spec_str, 'rmf='+rmf_spec_str,
@@ -226,7 +240,7 @@ def merge_xmmspec(src_spec_str, bkg_spec_str, arf_spec_str,
                     'allowHEdiff=yes'], check=False)
 
     # Get the total counts in the spectra to finally rename the grouped spectra
-    spec_totcount = get_totalcounts(output_base_str+'src_grp.ds')
+    # spec_totcount = get_totalcounts(output_base_str+'src_grp.ds')
 
     # Change the instrument name. The epicspeccombine gives some problem, yet
     # to figure out.
@@ -242,7 +256,7 @@ def merge_xmmspec(src_spec_str, bkg_spec_str, arf_spec_str,
         "specgroup", "spectrumset="+output_base_str+"src_grp.ds",
         "setbad=0:0.2, 10.0-15.0", "units=KEV", "mincounts=1",
         "rmfset="+output_base_str+'rsp_grp.ds',
-        "groupedset="+output_base_str+'src_grp1_'+str(spec_totcount)+'cts.ds'],
+        "groupedset="+output_base_str+'grp1_src.ds'],
                    check=False)
     return 1
 

@@ -577,9 +577,9 @@ def main():
     nh_file = ('/Volumes/Pavan_Work_SSD/GalacticBulge_4XMM_Chandra/' +
                'data/gal_coords_NH.csv')
     exp_map_folders = [('/Volumes/Pavan_Work_SSD/GalacticBulge_4XMM_Chandra/' +
-                        'data/xmm_expmaps/pn_maps/'),
+                        'data/xmm_good_expmaps/pn_maps/'),
                        ('/Volumes/Pavan_Work_SSD/GalacticBulge_4XMM_Chandra/' +
-                        'data/xmm_expmaps/mos_maps/'),
+                        'data/xmm_good_expmaps/mos_maps/'),
                        '/Volumes/Pavan_Work_SSD/Test_folder']
     pattern_list = ['*5000.FTZ', '*5000.FTZ', 'sgr*']
     telescope_arr = ['XMM', 'XMM', 'Chandra']

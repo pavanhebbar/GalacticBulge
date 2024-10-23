@@ -50,3 +50,60 @@ def model_params_file(file, model_type='pl')
                 line1_norm_vals, line2_norm_vals, line3_norm_vals,
                 line1_norm_low, line2_norm_low, line3_norm_low,
                 line1_norm_high, line2_norm_high, line2_norm_high)
+    return 0
+
+
+def get_netcounthist_fraction(netcount_bins_arr, cand_netcounts_arr,
+                              int_netcounts_arr, plot=True,
+                              det_names_arr=None):
+    """Get histogram of candidate sources based on a property."""
+    interested_srcs_histogram = []
+    candidate_srcs_histogram = []
+    ratios = []
+    err_ratios = []
+    for i, netcount_bins in enumerate(netcount_bins_arr):
+        int_hist = np.histogram(int_netcounts_arr[i], bins=netcount_bins)[0]
+        cand_hist = np.histogram(cand_netcounts_arr[i], bins=netcount_bins)[0]
+        ratio = cand_hist/int_hist
+        err_ratio = (cand_hist**-0.5 + int_hist**-0.5)*ratio
+        
+        interested_srcs_histogram.append(int_hist)
+        candidate_srcs_histogram.append(cand_hist)
+        ratios.append(ratio)
+        err_ratios.append(err_ratio)
+        if not plot:
+            return (interested_srcs_histogram, candidate_srcs_histogram,
+                    ratios, err_ratios)
+
+    fig, ax1 = plt.subplots()
+    ax1.set_xlabel('Net counts')
+    ax1.set_xscale('log')
+    ax1.set_xlim(250,1.0E+5)
+    ax1.set_ylabel('# per net count bin')
+    ax1.hist(int_netcounts_arr, bins=netcount_bins)
+    ax1.set_legend(det_names_arr)
+    
+    ax2 = ax1.twinx()
+    ax2.set_ylabel('Fraction')
+    ax2.set_ylim(0, 1.0)
+    for i, netcount_bins in enumerate(netcount_bins_arr):
+        ax2.errorbar(0.5*(netcount_bins[8:]+netcount_bins[7:-1]),
+                     ratios[i][7:],
+                     yerr=err_ratios[i][7:], capsize=15)
+    ax2.set_legend(det_names_arr)
+    return (interested_srcs_histogram, candidate_srcs_histogram, ratios,
+            err_ratios)
+
+
+def get_const(yvals, err):
+    nan_yvals = np.isnan(yvals)
+    nan_errs = np.isnan(err)
+    nan_vals = np.logical_or(nan_yvals, nan_errs)
+    return np.sum((yvals/err**2)[~nan_vals])/np.sum((1.0/err**2)[~nan_vals])
+
+
+def get_cvprob(p_nl_cvsim, p_nl_obs, p1_msp, p1_obs, p1_cv):
+    p_nl_cvsim[np.isnan(p_nl_cvsim)] = 0.0
+    p1_obs[np.isnan(p1_obs)] = 1.0
+    p1_cv[np.isnan(p1_cv)] = 0.0
+    return p_nl_cvsim/p_nl_obs*((p1_msp - p1_obs)/(p1_msp - p1_cv))

@@ -160,9 +160,10 @@ def download_resp(download_dir):
                             url], check=False)
 
 
-def main(table_loc, download_loc, rows_to_skip=4):
+def main(table_loc, download_loc, rows_to_skip=4, delimiter='\t'):
     """Default run function."""
-    det_table = load_table(table_loc, skiprows=rows_to_skip)
+    det_table = load_table(table_loc, delimiter=delimiter,
+                           skiprows=rows_to_skip)
     detid_list = det_table[:, 0].astype(int).astype(str).tolist()
     srcid_list = det_table[:, 1].astype(int).astype(str).tolist()
     srcnum_list = det_table[:, 3].astype(int).astype(str).tolist()
@@ -176,5 +177,7 @@ def main(table_loc, download_loc, rows_to_skip=4):
 if __name__ == '__main__':
     if len(sys.argv) == 3:
         main(sys.argv[1], sys.argv[2])
-    else:
+    elif len(sys.argv) == 4:
         main(sys.argv[1], sys.argv[2], int(sys.argv[3]))
+    else:
+        main(sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4])

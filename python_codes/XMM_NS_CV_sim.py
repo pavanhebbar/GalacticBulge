@@ -10,7 +10,6 @@ Analysis should be done both for PN and MOS
 
 
 import copy
-from tkinter import N
 import glob2
 import os
 import xspec
