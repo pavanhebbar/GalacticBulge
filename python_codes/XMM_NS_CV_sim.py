@@ -6,6 +6,7 @@ Functions needed:
 3. Random distribution of NH, power-law and Fe-line eq width for CV
 4. Fake-it simulations.
 Analysis should be done both for PN and MOS
+Use functions with '_fromsrc' to generate spectra with background.
 """
 
 
@@ -38,7 +39,10 @@ def get_resp(src_file, obs_folder='./', rmf_folder='./'):
 
 def sim_msp(resp_file, arf_file, bg_file, exp_s, sim_msp_name, nh_val,
             gamma_val, unabs_lx_val):
-    """Simulate the MSP spectra with the given values."""
+    """Simulate the MSP spectra with the given values.
+
+    CANNOT account the background properly
+    """
     msp_settings = xspec.FakeitSettings(
         response=resp_file, arf=arf_file, background=bg_file, exposure=exp_s,
         fileName=sim_msp_name)
@@ -53,7 +57,10 @@ def sim_msp(resp_file, arf_file, bg_file, exp_s, sim_msp_name, nh_val,
 
 def sim_msp_from_src(src_file, sim_msp_name, nh_val, gamma_val,
                      unabs_lx_val):
-    """Simulate MSP spectra from a source spectra."""
+    """Simulate MSP spectra from a source spectra.
+
+    Cannot account for the background.
+    """
     msp_settings = xspec.FakeitSettings(fileName=sim_msp_name)
     spectrum = xspec.Spectrum(src_file)
     msp_model = xspec.Model('tbabs*pegpwrlw')
@@ -65,16 +72,25 @@ def sim_msp_from_src(src_file, sim_msp_name, nh_val, gamma_val,
     xspec.AllModels.clear()
 
 
-def sim_cv_from_src(src_file, sim_msp_name, nh_val, temp_val, unabs_lx_val,
+def sim_cv_from_src(src_file, sim_cv_name, nh_val, temp_val, unabs_lx_val,
                     ew_64, ew_67, ew_70):
-    """Simulate spectra of CVs."""
-    ip_settings = xspec.FakeitSettings(fileName=sim_msp_name)
-    spectrum = xspec.Spectrum(src_file)
-    xspec.Xset.addModelString("APECNOLINES", "yes")
+    """Simulate spectra of CVs.
+    
+    Use this for simulations that need background. The background from the
+    src_file will be used for the fake spectra
+    """
+    # Input file name of fake spectra
+    ip_settings = xspec.FakeitSettings(fileName=sim_cv_name)
+    spectrum = xspec.Spectrum(src_file)   # Load source file of the background
+    # Switch off thermal lines in the thermal plasma. Will be added later.
+    xspec.Xset.addModelString("APECNOLINES", "yes") 
     ip_model = xspec.Model("tbabs*(apec+gaussian+gaussian+gaussian)")
-    unabs_flux = unabs_lx_val/(7.65757E+45)
+    unabs_flux = unabs_lx_val/(7.65757E+45)    # Flux at GC distance
     ip_model.setPars({1: nh_val, 2: temp_val, 6: 6.4, 8: 1.0E-4, 9: 6.7,
-                      11: 1.0E-4, 12: 7.0, 14: 1.0E-4})
+                      11: 1.0E-4, 12: 7.0, 14: 1.0E-4})  # setting parameters
+    # No way to directly specify equivalent width in the model, therefore
+    # calculate the equivalenth width given the model and then scale the norm
+    # of the model
     xspec.AllModels.eqwidth(3, rangeFrac=0.0)
     test_ew_64 = spectrum.eqwidth[0]
     xspec.AllModels.eqwidth(4, rangeFrac=0.0)
@@ -82,9 +98,13 @@ def sim_cv_from_src(src_file, sim_msp_name, nh_val, temp_val, unabs_lx_val,
     xspec.AllModels.eqwidth(5, rangeFrac=0.0)
     test_ew_70 = spectrum.eqwidth[0]
     norm_64 = ew_64/test_ew_64*1.0E-4
+    print(norm_64)
     norm_67 = ew_67/test_ew_67*1.0E-4
+    print(norm_67)
     norm_70 = ew_70/test_ew_70*1.0E-4
     xspec.AllModels.clear()
+    # Reset the parameters again with the calculated norms
+    print(norm_70)
     ip_model = xspec.Model("tbabs*cflux*(apec+gaussian+gaussian+gaussian)")
     ip_model.setPars({1: nh_val, 2: 2.0, 3: 10.0, 4: np.log10(unabs_flux),
                       5: temp_val, 9: 6.4, 11: norm_64, 12: 6.7, 14: norm_67,
@@ -96,6 +116,7 @@ def sim_cv_from_src(src_file, sim_msp_name, nh_val, temp_val, unabs_lx_val,
 
 def sim_cv_from_craig(src_file, sim_msp_name, nh_val, gamma_val, unabs_lx_val,
                       ew_fe):
+    """This was from one of Craig's results, where is used one Gaussian."""
     ip_settings = xspec.FakeitSettings(fileName=sim_msp_name)
     spectrum = xspec.Spectrum(src_file)
     ip_model = xspec.Model("tbabs*(pegpwrlw+gaussian)")
@@ -209,8 +230,8 @@ def cvs_sims_chandra_src(num_msps, nh_vals, temp_vals, unabs_lx_vals,
         sim_cv_from_src(
             srcfilename,
             sim_cv_folder + file_prefix + str(i) + '.fak',
-             nh_vals[i], temp_vals[i], unabs_lx_vals[i], ew_64_vals[i],
-             ew_67_vals[i], ew_70_vals[i])
+            nh_vals[i], temp_vals[i], unabs_lx_vals[i], ew_64_vals[i],
+            ew_67_vals[i], ew_70_vals[i])
         os.chdir(curr_dir)
         
         if i % 1000 == 0:
@@ -346,7 +367,13 @@ def get_msp_param_vals(num_msps, nh_abs_type):
 
 
 def cv_param_vals(num_cvs, nh_abs_type, cv_type='IP'):
-    """"Get parameter values for IP simulations."""
+    """"Get parameter values for IP simulations.
+    
+    nh_vals = Currently using a log uniform distribution
+    lx_vals - Currently using a log uniform distribution
+    temp_vals, ew_vals - Using normal distribution. Might need to change
+
+    """
     if nh_abs_type == 'high':
         nh_vals = np.random.uniform(22.7, 23.7, num_cvs)
     elif nh_abs_type == 'mid':
@@ -373,7 +400,11 @@ def cv_param_vals(num_cvs, nh_abs_type, cv_type='IP'):
     return nh_vals, temp_vals, lx_vals, ew_64_vals, ew_67_vals, ew_70_vals
 
 def ip_param_vals(num_cvs, nh_abs_type='high'):
-    """Get IP parameter values."""
+    """Get IP parameter values.
+
+    Same as previous, but picking the temp and EW values randomly from the list
+    rather than using a normal distribution.
+    """
     if nh_abs_type == 'high':
         nh_vals = np.random.uniform(22.7, 23.7, num_cvs)
     elif nh_abs_type == 'mid':

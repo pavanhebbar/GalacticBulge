@@ -1,0 +1,42 @@
+#CSCview Query
+#Thu Apr 10 15:38:54 MDT 2025
+pos.cm.type=new
+pos.type=crossmatch
+prop.operators=>\=,\=,>,>,>\=,NULL,\=,\=,>\=,>\=,>\=,>,<\=,<,NOT NULL
+prop.logical=AND,AND,AND,AND,OR,AND,AND,AND,AND,AND,AND,AND,AND,AND,
+rs.properties=cross_match.usrid,cross_match.separation,cross_match.probability,master_source.name,master_source.flux_aper_h,master_source.flux_aper_lolim_h,master_source.flux_aper_hilim_h,master_source.var_intra_index_h,master_source.var_intra_prob_h,master_source.ks_intra_prob_h,master_source.kp_intra_prob_h,master_source.var_inter_index_h,master_source.var_inter_prob_h,master_source.var_inter_sigma_h,observation_source.obsid,observation_source.obi,observation_source.region_id,observation_source.theta,observation_source.flux_aper_h,observation_source.flux_aper_lolim_h,observation_source.flux_aper_hilim_h,observation_source.var_index_h,observation_source.var_prob_h,observation_source.ks_prob_h,observation_source.kp_prob_h
+pos.queryLimSen=false
+pos.cm.sigmaUnits=arcsec
+prop.closedParen=),),),),),)),),),),),),),),),)
+pos.cm.lon.name=col1
+pos.cm.lon.id=0
+prop.value13=2
+cscview_version=1.3.11
+prop.value10=1
+prop.value11=0.0
+prop.value12=8.0
+qb.catalogRelease=2.1
+pos.cm.lat.id=1
+qb.maxRows=all
+prop.openParen=(,(,(,(,((,(,(,(,(,(,(,(,(,(,(
+prop.value8=3
+prop.value9=3
+prop.value6=ACIS
+prop.value7=NONE
+qb.distinct=true
+sort.directions=ascending,ascending,ascending,ascending,ascending,ascending
+qp.mode=form
+pos.cm.objid.name=rowindex
+pos.cm.objid.id=0
+prop.properties=master_source.significance,master_source.likelihood_class,master_source.flux_aper_h,master_source.photflux_aper_h,master_source.hard_hm_hilim,master_source.hard_hm_hilim,stack_source.instrument,stack_source.grating,stack_source.detect_significance_h,stack_source.flux_significance_h,observation_source.flux_significance_h,observation_source.flux_aper_h,observation_source.theta,observation_source.edge_code,observation_source.var_prob_h
+pos.cm.units=arcsec
+pos.cm.sigma=
+pos.cm.radius=2.0
+pos.cm.table=266.13776\t-28.74080\n266.22558\t-28.97827\n266.25968\t-28.91386\n266.26612\t-29.01444\n266.28588\t-28.94781\n266.30141\t-28.98376\n266.33547\t-29.08379\n266.33853\t-29.11470\n266.37513\t-28.99529\n266.38618\t-29.02190\n266.38645\t-28.93793\n266.38947\t-28.93831\n266.39026\t-28.99189\n266.39007\t-29.02783\n266.39818\t-29.02335\n266.39899\t-29.00123\n266.40171\t-29.01204\n266.40378\t-29.01090\n266.40770\t-28.98576\n266.40911\t-29.01314\n266.40962\t-29.01354\n266.41008\t-29.01223\n266.41062\t-29.02687\n266.41152\t-29.02607\n266.41194\t-29.01161\n266.41186\t-29.01563\n266.41376\t-28.92742\n266.41419\t-29.01139\n266.41467\t-29.01094\n266.41584\t-29.00556\n266.41696\t-29.00159\n266.41688\t-29.01278\n266.41734\t-29.01542\n266.41763\t-28.98968\n266.41782\t-29.01179\n266.41802\t-29.00139\n266.41813\t-29.01382\n266.41873\t-28.98775\n266.41836\t-29.07500\n266.42010\t-29.03030\n266.42076\t-29.00394\n266.42288\t-29.00751\n266.42344\t-28.99273\n266.42392\t-28.98183\n266.42604\t-28.97121\n266.42606\t-28.99984\n266.42656\t-28.91848\n266.43028\t-29.02946\n266.43045\t-29.03716\n266.43446\t-28.98839\n266.43532\t-28.99317\n266.43893\t-28.92275\n266.43887\t-28.99571\n266.43966\t-28.97458\n266.44917\t-29.02918\n266.45083\t-28.89642\n266.47468\t-29.06307\n266.47691\t-28.91523\n266.48016\t-28.91778\n266.48129\t-28.94253\n266.48642\t-28.92487\n266.49506\t-28.94622\n266.51172\t-28.94776\n266.51595\t-28.99376\n266.51896\t-29.05637\n266.52452\t-28.95611\n266.52595\t-28.94827\n266.52871\t-28.95158\n266.53019\t-28.94871\n266.53503\t-28.97550\n266.54047\t-28.96914\n266.54402\t-28.93064\n266.54708\t-29.06308\n266.55137\t-28.95138\n266.55664\t-28.96585\n266.55823\t-28.99001\n266.56504\t-28.97675\n266.58990\t-28.88235\n266.65081\t-28.78034\n266.39851\t-29.02610\n266.40860\t-29.00621\n266.41736\t-29.00827\n266.58823\t-28.72874
+pos.cm.lat.name=col2
+prop.value4=0.70
+prop.value2=0
+prop.value3=0
+sort.properties=cross_match.usrid,cross_match.separation,master_source.name,observation_source.obsid,observation_source.obi,observation_source.region_id
+prop.value0=3
+prop.value1=TRUE

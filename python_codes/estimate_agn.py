@@ -287,12 +287,12 @@ def plot_fine_maps(folder, nh_data_file, pattern='*', telescope='XMM',
     if telescope == 'XMM':
         if xmm_specfolder is None:
             xmm_specfolder = '.'
-        pn_files = glob2.glob(xmm_specfolder + '/*PN*grp1*cts.ds')
-        mos_files = glob2.glob(xmm_specfolder + '/*MOS*grp1*cts.ds')
+        pn_files = glob2.glob(xmm_specfolder + '/*PN*grp1*.ds')
+        mos_files = glob2.glob(xmm_specfolder + '/*MOS*grp1*.ds')
         srcs, coord = get_name_coord_exp_list(pn_files)[:-1]
         mos_srcs, mos_coord = get_name_coord_exp_list(mos_files)[:-1]
         mos_coord = mos_coord.copy().transpose()
-        markers = ['o']
+        markers = ['^', 'v', 'd']
     else:
         csc_master = pd.read_table(csc_masterfile, header=13)
         srcs = np.array(csc_master['name'])
@@ -308,7 +308,7 @@ def plot_fine_maps(folder, nh_data_file, pattern='*', telescope='XMM',
         mos_srcs = None
         mos_coord = None
         mos_exp_map = None
-        markers = ['^', 'v', 'd']
+        markers = ['o']
     print('Coordinates read')
 
     # Plotting everything.
@@ -469,6 +469,81 @@ def plot_all(grid_centers, nh_map, pn_exp_map, pn_srcs, pn_src_pos,
                 pn_src_pos[0][common_pn_candidate_mask],
                 pn_src_pos[1][only_pn_candidate_mask], marker=markers[0],
                 facecolor=color, edgecolor=color)
+    axes.legend()
+    return fig, axes
+
+
+def plot_fine_allcand(grid_centers, pn_exp_map, pn_srcs, pn_src_pos,
+                      mos_exp_map=None, mos_srcs=None, mos_src_pos=None,
+                      acis_exp_map=None, acis_srcs=None, acis_src_pos=None,
+                      candidate_pn_srcs=None, candidate_mos_srcs=None,
+                      candidate_acis_srcs=None, markers=None,
+                      color='#004488', legend=None, min_exp=3,
+                      exp_grid_cs=None):
+    """Plot everything."""
+    if isinstance(pn_exp_map, list):
+        pn_exp_map = pn_exp_map[0] + pn_exp_map[1] + pn_exp_map[2]
+    if mos_exp_map is not None:
+        if isinstance(mos_exp_map, list):
+            mos_exp_map = mos_exp_map[0] + mos_exp_map[1] + mos_exp_map[2]
+        total_exp_map = pn_exp_map + 0.4*mos_exp_map
+    else:
+        total_exp_map = pn_exp_map.copy()
+    if acis_exp_map is not None:
+        total_exp_map += 0.4*acis_exp_map
+    if exp_grid_cs is None:
+        exp_grid_cs = [grid_centers[0].copy(), grid_centers[1].copy()]
+    if mos_srcs is not None:
+        common_pn_bool = np.in1d(pn_srcs, mos_srcs)
+        common_mos_bool = np.in1d(mos_srcs, pn_srcs)
+    else:
+        common_pn_bool = np.zeros(len(pn_srcs), dtype=bool)
+    if candidate_pn_srcs is not None:
+        candidate_pn_mask = np.in1d(pn_srcs, candidate_pn_srcs)
+        only_pn_candidate_mask = np.logical_and(~common_pn_bool,
+                                                candidate_pn_mask)
+        if candidate_mos_srcs is not None:
+            candidate_mos_mask = np.in1d(mos_srcs, candidate_mos_srcs)
+            common_pn_candidate_mask = np.logical_and(common_pn_bool,
+                                                      candidate_pn_mask)
+            only_mos_candidate_mask = np.logical_and(~common_mos_bool,
+                                                     candidate_mos_mask)
+        if candidate_acis_srcs is not None:
+            candidate_acis_mask = np.in1d(acis_srcs, candidate_acis_srcs)
+
+    if markers is None:
+        markers = ['^', 'v', 'd', 'o']
+    if legend is None:
+        legend = ['Only PN detections', 'Only MOS detections',
+                  'PN and MOS sources', 'ACIS detections']
+    exp_levels = np.logspace(min_exp, np.log10(np.max(total_exp_map)), 101)
+    fig, axes = plot_contours(
+        exp_grid_cs[0], exp_grid_cs[1], total_exp_map, filled=True,
+        map_levels=exp_levels, map_label='Exposure (s)', vmin=10**min_exp)
+    nh_levels = np.logspace(22.7, 24.0, 5)
+    plot_contours(grid_centers[0], grid_centers[1], nh_map, name_axes=False,
+                  axes=axes, map_levels=nh_levels, vmin=5.0E+22)
+    if candidate_pn_srcs is not None:
+        axes.scatter(
+            pn_src_pos[0][only_pn_candidate_mask],
+            pn_src_pos[1][only_pn_candidate_mask], marker=markers[0],
+            facecolor=color, edgecolor=color, label=legend[0])
+    if mos_srcs is not None:
+        if candidate_mos_srcs is not None:
+            axes.scatter(
+                mos_src_pos[0][only_mos_candidate_mask],
+                mos_src_pos[1][only_mos_candidate_mask], marker=markers[1],
+                facecolor=color, edgecolor=color, legend=legend[1])
+            axes.scatter(
+                pn_src_pos[0][common_pn_candidate_mask],
+                pn_src_pos[1][only_pn_candidate_mask], marker=markers[2],
+                facecolor=color, edgecolor=color, legend=legend[2])
+    if acis_srcs is not None:
+        if candidate_acis_srcs is not None:
+            axes.scatter(
+                acis_src_pos[0][candidate_acis_mask],
+                acis_src_pos[1][candidate_acis_mask], marker=markers[3],
+                facecolor='#bb5566', edgecolor='#bb5566', legend=legend[3])
     axes.legend()
     return fig, axes
 

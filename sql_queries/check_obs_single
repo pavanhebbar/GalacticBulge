@@ -1,0 +1,23 @@
+#CSCview Query
+#Thu Apr 10 16:35:21 MDT 2025
+pos.cone.lat=-28.95158
+qb.catalogRelease=2.1
+qb.maxRows=top 1000
+prop.openParen=(
+pos.cone.radius=2.0
+pos.type=cone
+prop.operators=\=
+prop.logical=
+sort.directions=ascending
+qp.mode=form
+rs.properties=separation,master_source.name,observation_source.instrument,observation_source.grating,observation_source.datamode,observation_source.flux_significance_h,observation_source.likelihood_h
+pos.queryLimSen=false
+pos.cone.coordSystem=Equatorial
+prop.closedParen=)
+prop.properties=observation_source.obsid
+pos.cone.lon=266.52871
+pos.cone.units=arcsec
+cscview_version=1.3.11
+pos.cone.mode=coordinates
+sort.properties=separation
+prop.value0=12949
