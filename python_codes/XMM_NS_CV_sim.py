@@ -125,9 +125,17 @@ def sim_cvs_from_mondal(src_file, sim_cv_name, nh_val, gamma_val,
         6:6.4, 7:0.0, 8:norm_64, 9:6.7, 10:0.0, 11:norm_67, 12:6.9, 13:0.0,
         14:norm_69})
     ip_model.show()
+    xspec.AllModels.eqwidth(3, rangeFrac=0.0)
+    ew_64 = spectrum.eqwidth[0]
+    xspec.AllModels.eqwidth(4, rangeFrac=0.0)
+    ew_67 = spectrum.eqwidth[0]
+    xspec.AllModels.eqwidth(5, rangeFrac=0.0)
+    ew_70 = spectrum.eqwidth[0]
     xspec.AllData.fakeit(1, ip_settings)
     xspec.AllData.clear()
     xspec.AllModels.clear()
+    print(ew_64, ew_67, ew_70)
+    return ew_64, ew_67, ew_70
 
 
 def sim_cv_from_craig(src_file, sim_msp_name, nh_val, gamma_val, unabs_lx_val,
@@ -400,7 +408,7 @@ def cvs_sims_from_src_pl(num_cvs, nh_vals, gamma_vals, unabs_flux_vals,
     pn_src_args = np.random.choice(np.arange(len(pn_files)), size=num_cvs)
     mos_src_args = np.random.choice(np.arange(len(mos_files)), size=num_cvs)
     for i in range(num_cvs):
-        sim_cvs_from_mondal(
+        ew_64, ew_67, ew_70 = sim_cvs_from_mondal(
                 pn_files[pn_src_args[i]],
                 sim_cv_folder + file_prefix + str(i) + '_PN.fak',
                 nh_vals[i], gamma_vals[i], unabs_flux_vals[i], norm_64_vals[i],
@@ -413,6 +421,8 @@ def cvs_sims_from_src_pl(num_cvs, nh_vals, gamma_vals, unabs_flux_vals,
 
         if i % 1000 == 0:
             print('Finished ' + str(i) + ' simulations')
+
+    return ew_64, ew_67, ew_70
 
 
 def get_cv_params_mondal(num_cvs):
@@ -551,13 +561,15 @@ def main_cvs(num_cvs=10000, src_folder=None,
     if src_folder is None:
         src_folder = ('/Volumes/Pavan_Work_SSD/GalacticBulge_4XMM_Chandra/' +
                       'data/xmm_combined_goodobs2')
-    cvs_sims_from_src_pl(num_cvs, nh_vals, gamma_vals, flux_vals, norm_64vals,
-                        norm_67vals, norm_69vals, src_folder, sim_cv_folder)
+    eq_widths = cvs_sims_from_src_pl(
+        num_cvs, nh_vals, gamma_vals, flux_vals, norm_64vals,
+        norm_67vals, norm_69vals, src_folder, sim_cv_folder)
     # cvs_sims_chandra_src_pl(num_cvs, nh_vals, gamma_vals, flux_vals,
     #                        norm_64vals, norm_67vals, norm_69vals, src_folder,
     #                        sim_cv_folder)
     cv_param_vals = np.column_stack([
-        nh_vals, gamma_vals, flux_vals, norm_64vals, norm_67vals, norm_69vals])
+        nh_vals, gamma_vals, flux_vals, norm_64vals, norm_67vals, norm_69vals,
+        eq_widths[0], eq_widths[1], eq_widths[2]])
     np.savetxt(sim_cv_folder + 'param_cvs.txt', cv_param_vals)
     return cv_param_vals
 
