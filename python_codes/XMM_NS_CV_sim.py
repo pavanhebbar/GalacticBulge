@@ -10,6 +10,7 @@ Use functions with '_fromsrc' to generate spectra with background.
 """
 
 
+from calendar import c
 import copy
 import glob2
 import os
@@ -102,9 +103,12 @@ def sim_cv_from_src(src_file, sim_cv_name, nh_val, temp_val, unabs_lx_val,
     norm_67 = ew_67/test_ew_67*1.0E-4
     print(norm_67)
     norm_70 = ew_70/test_ew_70*1.0E-4
+    print(norm_70)
+    # ip_model.setPars({8:0.0, 11:norm_67, 12:0.0})
+    # xspec.AllModels.eqwidth(4, rangeFrac=0.0)
+    # calc_ew_67 = spectrum.eqwidth[0]
     xspec.AllModels.clear()
     # Reset the parameters again with the calculated norms
-    print(norm_70)
     ip_model = xspec.Model("tbabs*cflux*(apec+gaussian+gaussian+gaussian)")
     ip_model.setPars({1: nh_val, 2: 2.0, 3: 10.0, 4: np.log10(unabs_flux),
                       5: temp_val, 9: 6.4, 11: norm_64, 12: 6.7, 14: norm_67,
@@ -112,6 +116,7 @@ def sim_cv_from_src(src_file, sim_cv_name, nh_val, temp_val, unabs_lx_val,
     xspec.AllData.fakeit(1, ip_settings)
     xspec.AllData.clear()
     xspec.AllModels.clear()
+    return norm_64, norm_67, norm_70
 
 
 def sim_cvs_from_mondal(src_file, sim_cv_name, nh_val, gamma_val,
@@ -122,20 +127,49 @@ def sim_cvs_from_mondal(src_file, sim_cv_name, nh_val, gamma_val,
     ip_model = xspec.Model("tbabs*(pegpwrlw+gaussian+gaussian+gaussian)")
     ip_model.setPars({
         1:nh_val/1.0E+22, 2:gamma_val, 3:2.0, 4:10.0, 5:unabs_flux_val,
+        6:6.4, 7:0.0, 8:0.0, 9:6.7, 10:0.0, 11:norm_67, 12:6.9, 13:0.0,
+        14:0.0})
+    xspec.AllModels.eqwidth(4, rangeFrac=0.0)
+    ew_67 = spectrum.eqwidth[0]
+    print(ew_67)
+    ip_model.setPars({
+        1:nh_val/1.0E+22, 2:gamma_val, 3:2.0, 4:10.0, 5:unabs_flux_val,
         6:6.4, 7:0.0, 8:norm_64, 9:6.7, 10:0.0, 11:norm_67, 12:6.9, 13:0.0,
         14:norm_69})
     ip_model.show()
-    xspec.AllModels.eqwidth(3, rangeFrac=0.0)
-    ew_64 = spectrum.eqwidth[0]
-    xspec.AllModels.eqwidth(4, rangeFrac=0.0)
-    ew_67 = spectrum.eqwidth[0]
-    xspec.AllModels.eqwidth(5, rangeFrac=0.0)
-    ew_70 = spectrum.eqwidth[0]
     xspec.AllData.fakeit(1, ip_settings)
+
     xspec.AllData.clear()
     xspec.AllModels.clear()
-    print(ew_64, ew_67, ew_70)
-    return ew_64, ew_67, ew_70
+    return ew_67
+
+
+def sim_cvs_from_mondal_ews(src_file, sim_cv_name, nh_val, gamma_val,
+                            unabs_flux_val, ew_67, i64_i67_ratio,
+                            i69_i67_ratio):
+    """Using Mondal EWs and line intentisty ratios rather than intensities."""
+    ip_settings = xspec.FakeitSettings(fileName=sim_cv_name)
+    spectrum = xspec.Spectrum(src_file)
+    ip_model = xspec.Model("tbabs*(pegpwrlw+gaussian)")
+    ip_model.setPars({1: nh_val, 2: gamma_val, 6:6.7, 7: 0.0, 8:1.0E-7})
+    xspec.AllModels.eqwidth(3, rangeFrac=0.0)
+    test_ew_67 = spectrum.eqwidth[0]
+    norm_67 = ew_67/test_ew_67*1.0E-7
+    norm_64 = i64_i67_ratio*norm_67
+    norm_69 = i69_i67_ratio*norm_67
+    print(norm_64, norm_67, norm_69)
+    xspec.AllModels.clear()
+
+    ip_model = xspec.Model("tbabs*cflux*(pegpwrlw+gaussian+gaussian+gaussian)")
+    ip_model.setPars({1:nh_val, 2:2.0, 3:10.0, 4:np.log10(unabs_flux_val),
+                      5:gamma_val, 9:6.4, 10:0.0, 11:norm_64, 12:6.7, 13:0.0,
+                      14:norm_67, 15:6.9, 16:0.0, 17:norm_69})
+    ip_model.show()
+    xspec.AllData.fakeit(1, ip_settings)
+
+    xspec.AllData.clear()
+    xspec.AllModels.clear()
+    return norm_67
 
 
 def sim_cv_from_craig(src_file, sim_msp_name, nh_val, gamma_val, unabs_lx_val,
@@ -248,10 +282,11 @@ def cvs_sims_chandra_src(num_msps, nh_vals, temp_vals, unabs_lx_vals,
     src_files = glob2.glob(src_folder + '/*/*_combined_src.rmf')
     src_args = np.random.choice(np.arange(len(src_files)), size=num_msps)
     curr_dir = os.getcwd()
+    calc_ew67_vals = np.zeros(num_msps, dtype=float)
     for i in range(num_msps):
         os.chdir(os.path.dirname(src_files[src_args[i]])) 
         srcfilename = os.path.basename(src_files[src_args[i]])[:-3] + 'pi'
-        sim_cv_from_src(
+        calc_ew67_vals[i] = sim_cv_from_src(
             srcfilename,
             sim_cv_folder + file_prefix + str(i) + '.fak',
             nh_vals[i], temp_vals[i], unabs_lx_vals[i], ew_64_vals[i],
@@ -260,10 +295,11 @@ def cvs_sims_chandra_src(num_msps, nh_vals, temp_vals, unabs_lx_vals,
         
         if i % 1000 == 0:
             print('Finished ' + str(i) + ' simulations')
+    return calc_ew67_vals
 
 
 def cvs_sims_chandra_src_pl(num_msps, nh_vals, gamma_vals, unabs_flux_vals,
-                            norm_64_vals, norm_67_vals, norm_69_vals,
+                            ew_67_vals, ratios_64_67, ratios_69_67,
                             src_folder, sim_cv_folder='./', file_prefix='cv_'):
     """Simulate Chandra MSPs.
     
@@ -272,18 +308,20 @@ def cvs_sims_chandra_src_pl(num_msps, nh_vals, gamma_vals, unabs_flux_vals,
     src_files = glob2.glob(src_folder + '/*/*_combined_src.rmf')
     src_args = np.random.choice(np.arange(len(src_files)), size=num_msps)
     curr_dir = os.getcwd()
+    norm_67_vals = np.zeros(num_msps, dtype=float)
     for i in range(num_msps):
         os.chdir(os.path.dirname(src_files[src_args[i]])) 
         srcfilename = os.path.basename(src_files[src_args[i]])[:-3] + 'pi'
-        sim_cvs_from_mondal(
+        norm_67_vals[i] = sim_cvs_from_mondal_ews(
             srcfilename,
             sim_cv_folder + file_prefix + str(i) + '.fak',
-            nh_vals[i], gamma_vals[i], unabs_flux_vals[i], norm_64_vals[i],
-            norm_67_vals[i], norm_69_vals[i])
+            nh_vals[i], gamma_vals[i], unabs_flux_vals[i], ew_67_vals[i],
+            ratios_64_67[i], ratios_69_67[i])
         os.chdir(curr_dir)
         
         if i % 1000 == 0:
             print('Finished ' + str(i) + ' simulations')
+    return norm_67_vals
 
 
 def msp_sims_from_src2(num_msps, nh_vals, gamma_vals, unabs_lx_vals,
@@ -379,13 +417,14 @@ def cvs_sims_from_src2(num_msps, nh_vals, temp_vals, unabs_lx_vals, ew_64_vals,
      only_mos_files) = get_xmm_src_files(src_folder)
     pn_files = common_files_pn + only_pn_files
     mos_files = common_files_mos + only_mos_files
+    norm_vals = np.zeros((num_msps, 3), dtype=float)
     pn_src_args = np.random.choice(np.arange(len(pn_files)), size=num_msps)
     mos_src_args = np.random.choice(np.arange(len(mos_files)), size=num_msps)
     for i in range(num_msps):
-        sim_cv_from_src(
+        norm_vals[i] = sim_cv_from_src(
                 pn_files[pn_src_args[i]],
                 sim_cv_folder + file_prefix + str(i) + '_PN.fak',
-                nh_vals[i], temp_vals[i], unabs_lx_vals[i], ew_64_vals,
+                nh_vals[i], temp_vals[i], unabs_lx_vals[i], ew_64_vals[i],
                 ew_67_vals[i], ew_70_vals[i])
         sim_cv_from_src(
                 mos_files[mos_src_args[i]],
@@ -395,10 +434,11 @@ def cvs_sims_from_src2(num_msps, nh_vals, temp_vals, unabs_lx_vals, ew_64_vals,
 
         if i % 1000 == 0:
             print('Finished ' + str(i) + ' simulations')
+    return norm_vals
 
 
 def cvs_sims_from_src_pl(num_cvs, nh_vals, gamma_vals, unabs_flux_vals,
-                         norm_64_vals, norm_67_vals, norm_69_vals,
+                         ew_67_vals, ratios_64_67, ratios_69_67,
                          src_folder, sim_cv_folder='./', file_prefix='cv_'):
     """Simulate CVs for a power law model, specifically Mondal paper"""
     (common_files_pn, common_files_mos, only_pn_files,
@@ -407,22 +447,23 @@ def cvs_sims_from_src_pl(num_cvs, nh_vals, gamma_vals, unabs_flux_vals,
     mos_files = common_files_mos + only_mos_files
     pn_src_args = np.random.choice(np.arange(len(pn_files)), size=num_cvs)
     mos_src_args = np.random.choice(np.arange(len(mos_files)), size=num_cvs)
+    norm_67_vals = np.zeros(num_cvs, dtype=float)
     for i in range(num_cvs):
-        ew_64, ew_67, ew_70 = sim_cvs_from_mondal(
+        norm_67_vals[i] = sim_cvs_from_mondal_ews(
                 pn_files[pn_src_args[i]],
                 sim_cv_folder + file_prefix + str(i) + '_PN.fak',
-                nh_vals[i], gamma_vals[i], unabs_flux_vals[i], norm_64_vals[i],
-                norm_67_vals[i], norm_69_vals[i])
-        sim_cvs_from_mondal(
+                nh_vals[i], gamma_vals[i], unabs_flux_vals[i], ew_67_vals[i],
+                ratios_64_67[i], ratios_69_67[i])
+        sim_cvs_from_mondal_ews(
                 mos_files[mos_src_args[i]],
                 sim_cv_folder + file_prefix + str(i) + '_MOS.fak',
-                nh_vals[i], gamma_vals[i], unabs_flux_vals[i], norm_64_vals[i],
-                norm_67_vals[i], norm_69_vals[i])
+                nh_vals[i], gamma_vals[i], unabs_flux_vals[i], ew_67_vals[i],
+                ratios_64_67[i], ratios_69_67[i])
 
         if i % 1000 == 0:
             print('Finished ' + str(i) + ' simulations')
 
-    return ew_64, ew_67, ew_70
+    return norm_67_vals
 
 
 def get_cv_params_mondal(num_cvs):
@@ -456,6 +497,36 @@ def get_cv_params_mondal(num_cvs):
     return (nh_vals, gamma_vals, flux_vals, norm_64vals, norm_67vals,
             norm_69vals)
     
+
+def cv_params_mondal2(num_cvs):
+    """Get CV parameters."""
+    nh_vals = 10**np.random.uniform(22.7, 23.7, num_cvs)
+    lx_vals = 10**np.random.uniform(31.0, 34.0, num_cvs)
+    flux_vals = lx_vals/(7.657569170326442e+45)
+    gamma_giv = [0.43, 0.72, 0.22, 0.0, 0.62, 0.38, 0.62, 0.96, 1.37, 0.56,
+                 0.26, 0.98, 0.11, 0.28, -0.70, 1.16, 0.11, 0.96, -0.73, 0.19,
+                 1.24, -0.17, 0.23, 0.35, 0.91, 0.37, 0.24, 0.68, 0.74, 0.0,
+                 0.67, 0.63, 0.67, -0.43, 0.61, -0.67, -0.41, -0.31, 0.31]
+    ew_vals_giv = [0.13, 0.33, 0.62, 0.35, 0.14, 0.17, 0.55, 0.19, 0.46, 0.23,
+                   0.19, 0.25, 0.16, 0.54, 0.89, 0.21, 0.24, 0.67, 1.01, 0.15,
+                   1.13, 0.18, 0.53, 0.50, 0.55, 0.35, 0.74, 0.82, 0.19, 0.27,
+                   0.57, 0.35, 0.31, 0.3, 0.32, 0.41, 0.49, 0.38, 0.31]
+    ratios_69_67_giv = [0.00, 0.00, 0.77, 0.64, 1.11, 0.83, 0.51, 0.90, 0.82,
+                        0.00, 0.61, 0.67, 0.00, 0.00, 0.78, 0.00, 0.98, 0.73,
+                        0.53, 1.03, 0.94, 0.42, 0.75, 0.00, 0.85, 0.69, 0.10,
+                        0.86, 0.00, 0.00, 0.53, 0.87, 0.72, 0.73, 0.74, 0.63,
+                        0.00, 0.81, 0.59]
+    ratios_64_67 = np.random.choice(
+        [0.68, 1.18, 0.13, 1.75, 1.26, 1.5, 1.21, 1.17, 1.93, 1.83, 0.86, 0.71,
+         1.29, 1.24, 1.98, 0.76, 0.84], num_cvs)
+    random_index = np.random.choice(np.arange(39), num_cvs)
+    gamma_vals = np.array(gamma_giv)[random_index]
+    ew_67_vals = np.array(ew_vals_giv)[random_index]
+    ratios_69_67 = np.array(ratios_69_67_giv)[random_index]
+    return (nh_vals, gamma_vals, flux_vals, ew_67_vals, ratios_64_67,
+            ratios_69_67)
+    
+
 
 def get_msp_param_vals(num_msps, nh_abs_type):
     """Get parameter values for the MSP simulations."""
@@ -526,7 +597,7 @@ def ip_param_vals(num_cvs, nh_abs_type='high'):
     lx_vals = 10**lx_vals
 
     temp_vals = np.random.choice(
-        [19.7, 42.6, 9.41, 19.1, 30.5, 63.6, 15.8, 43.5, 32.6, 65.9, 40.5,
+        [19.7, 42.6, 9.41, 19.1, 30.5, 63.6, 15.8, 43.5, 32.6, 64.0, 40.5,
          26.9, 26.6, 22.8, 47.3, 39.6, 31.6], num_cvs)
     ew_64_vals = np.random.choice(
         [158, 102, 32, 133, 128, 88, 139, 156, 128, 172, 120, 88, 97, 140, 131,
@@ -553,23 +624,74 @@ def ip_param_vals_craig(num_cvs):
     return nh_vals, gamma_vals, lx_vals, ew_vals
 
 
+def main_cvs_xu(num_cvs=10000, src_folder=None, sim_cv_folder=None,
+                telescope='XMM', sim_cv_folder2=None):
+    """Generate CVs according to Xu model."""
+    (nh_vals, temp_vals, lx_vals, ew_64_vals, ew_67_vals,
+     ew_70_vals) = ip_param_vals(num_cvs)
+    if src_folder is None:
+        src_folder = './'
+    if sim_cv_folder is None:
+        sim_cv_folder = './'
+
+    if telescope == 'XMM':
+        norm_vals = cvs_sims_from_src2(
+            num_cvs, nh_vals, temp_vals, lx_vals, ew_64_vals, ew_67_vals,
+            ew_70_vals, src_folder, sim_cv_folder)
+        cv_param_vals = np.column_stack([
+            nh_vals, temp_vals, lx_vals, ew_64_vals, ew_67_vals, ew_70_vals,
+            norm_vals[:, 0], norm_vals[:, 1], norm_vals[:, 2]])
+        np.savetxt(sim_cv_folder + 'param_cvs.txt', cv_param_vals)
+        if sim_cv_folder2 is not None:
+            norm_vals_2 = cvs_sims_from_src2(
+                num_cvs, nh_vals, temp_vals, lx_vals, ew_64_vals*0.5,
+                ew_67_vals*0.5, ew_70_vals*0.5, src_folder, sim_cv_folder2)
+            cv_param_vals = np.column_stack([
+                nh_vals, temp_vals, lx_vals, ew_64_vals*0.5, ew_67_vals*0.5,
+                ew_70_vals*0.5, norm_vals_2[:, 0], norm_vals_2[:, 1],
+                norm_vals_2[:, 2]])
+            np.savetxt(sim_cv_folder + 'param_cvs.txt', cv_param_vals)
+    else:
+        norm_vals = cvs_sims_chandra_src(
+            num_cvs, nh_vals, temp_vals, lx_vals, ew_64_vals, ew_67_vals,
+            ew_70_vals, src_folder, sim_cv_folder)
+        cv_param_vals = np.column_stack([
+            nh_vals, temp_vals, lx_vals, ew_64_vals, ew_67_vals, ew_70_vals,
+            norm_vals[:, 0], norm_vals[:, 1], norm_vals[:, 2]])
+        np.savetxt(sim_cv_folder + 'param_cvs.txt', cv_param_vals)
+        if sim_cv_folder2 is not None:
+            norm_vals_2 = cvs_sims_chandra_src(
+                num_cvs, nh_vals, temp_vals, lx_vals, ew_64_vals*0.5,
+                ew_67_vals*0.5, ew_70_vals*0.5, src_folder, sim_cv_folder2)
+            cv_param_vals = np.column_stack([
+                nh_vals, temp_vals, lx_vals, ew_64_vals*0.5, ew_67_vals*0.5,
+                ew_70_vals*0.5, norm_vals_2[:, 0], norm_vals_2[:, 1],
+                norm_vals_2[:, 2]])
+            np.savetxt(sim_cv_folder + 'param_cvs.txt', cv_param_vals)
+    
+    return cv_param_vals
+            
+
+
 def main_cvs(num_cvs=10000, src_folder=None,
              sim_cv_folder='./'):
     """Generate CVs"""
-    (nh_vals, gamma_vals, flux_vals, norm_64vals, norm_67vals,
-     norm_69vals) = get_cv_params_mondal(num_cvs)
+    (nh_vals, gamma_vals, flux_vals, ew_67vals, ratios_6467,
+     ratios_6967) = cv_params_mondal2(num_cvs)
+    
     if src_folder is None:
         src_folder = ('/Volumes/Pavan_Work_SSD/GalacticBulge_4XMM_Chandra/' +
                       'data/xmm_combined_goodobs2')
-    eq_widths = cvs_sims_from_src_pl(
-        num_cvs, nh_vals, gamma_vals, flux_vals, norm_64vals,
-        norm_67vals, norm_69vals, src_folder, sim_cv_folder)
-    # cvs_sims_chandra_src_pl(num_cvs, nh_vals, gamma_vals, flux_vals,
-    #                        norm_64vals, norm_67vals, norm_69vals, src_folder,
-    #                        sim_cv_folder)
+    norm_67vals = cvs_sims_from_src_pl(
+        num_cvs, nh_vals/1.0E+22, gamma_vals, flux_vals, ew_67vals,
+        ratios_6467, ratios_6967, src_folder, sim_cv_folder)
+    # norm_67vals = cvs_sims_chandra_src_pl(
+    #    num_cvs, nh_vals/1.0E+22, gamma_vals, flux_vals, ew_67vals,
+    #    ratios_6467, ratios_6967, src_folder, sim_cv_folder)
     cv_param_vals = np.column_stack([
-        nh_vals, gamma_vals, flux_vals, norm_64vals, norm_67vals, norm_69vals,
-        eq_widths[0], eq_widths[1], eq_widths[2]])
+        nh_vals, gamma_vals, flux_vals, ew_67vals, ratios_6467, ratios_6967,
+        norm_67vals])
+    
     np.savetxt(sim_cv_folder + 'param_cvs.txt', cv_param_vals)
     return cv_param_vals
 
