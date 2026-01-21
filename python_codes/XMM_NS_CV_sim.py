@@ -282,11 +282,11 @@ def cvs_sims_chandra_src(num_msps, nh_vals, temp_vals, unabs_lx_vals,
     src_files = glob2.glob(src_folder + '/*/*_combined_src.rmf')
     src_args = np.random.choice(np.arange(len(src_files)), size=num_msps)
     curr_dir = os.getcwd()
-    calc_ew67_vals = np.zeros(num_msps, dtype=float)
+    norm_vals = np.zeros((num_msps, 3), dtype=float)
     for i in range(num_msps):
         os.chdir(os.path.dirname(src_files[src_args[i]])) 
         srcfilename = os.path.basename(src_files[src_args[i]])[:-3] + 'pi'
-        calc_ew67_vals[i] = sim_cv_from_src(
+        norm_vals[i] = sim_cv_from_src(
             srcfilename,
             sim_cv_folder + file_prefix + str(i) + '.fak',
             nh_vals[i], temp_vals[i], unabs_lx_vals[i], ew_64_vals[i],
@@ -295,7 +295,7 @@ def cvs_sims_chandra_src(num_msps, nh_vals, temp_vals, unabs_lx_vals,
         
         if i % 1000 == 0:
             print('Finished ' + str(i) + ' simulations')
-    return calc_ew67_vals
+    return norm_vals
 
 
 def cvs_sims_chandra_src_pl(num_msps, nh_vals, gamma_vals, unabs_flux_vals,
@@ -636,24 +636,24 @@ def main_cvs_xu(num_cvs=10000, src_folder=None, sim_cv_folder=None,
 
     if telescope == 'XMM':
         norm_vals = cvs_sims_from_src2(
-            num_cvs, nh_vals, temp_vals, lx_vals, ew_64_vals, ew_67_vals,
-            ew_70_vals, src_folder, sim_cv_folder)
+            num_cvs, nh_vals/1.0E+22, temp_vals, lx_vals, ew_64_vals,
+            ew_67_vals, ew_70_vals, src_folder, sim_cv_folder)
         cv_param_vals = np.column_stack([
-            nh_vals, temp_vals, lx_vals, ew_64_vals, ew_67_vals, ew_70_vals,
-            norm_vals[:, 0], norm_vals[:, 1], norm_vals[:, 2]])
+            nh_vals, temp_vals, lx_vals, ew_64_vals, ew_67_vals,
+            ew_70_vals, norm_vals[:, 0], norm_vals[:, 1], norm_vals[:, 2]])
         np.savetxt(sim_cv_folder + 'param_cvs.txt', cv_param_vals)
         if sim_cv_folder2 is not None:
             norm_vals_2 = cvs_sims_from_src2(
-                num_cvs, nh_vals, temp_vals, lx_vals, ew_64_vals*0.5,
+                num_cvs, nh_vals/1.0E+22, temp_vals, lx_vals, ew_64_vals*0.5,
                 ew_67_vals*0.5, ew_70_vals*0.5, src_folder, sim_cv_folder2)
             cv_param_vals = np.column_stack([
                 nh_vals, temp_vals, lx_vals, ew_64_vals*0.5, ew_67_vals*0.5,
                 ew_70_vals*0.5, norm_vals_2[:, 0], norm_vals_2[:, 1],
                 norm_vals_2[:, 2]])
-            np.savetxt(sim_cv_folder + 'param_cvs.txt', cv_param_vals)
+            np.savetxt(sim_cv_folder2 + 'param_cvs.txt', cv_param_vals)
     else:
         norm_vals = cvs_sims_chandra_src(
-            num_cvs, nh_vals, temp_vals, lx_vals, ew_64_vals, ew_67_vals,
+            num_cvs, nh_vals/1.0E+22, temp_vals, lx_vals, ew_64_vals, ew_67_vals,
             ew_70_vals, src_folder, sim_cv_folder)
         cv_param_vals = np.column_stack([
             nh_vals, temp_vals, lx_vals, ew_64_vals, ew_67_vals, ew_70_vals,
@@ -661,13 +661,13 @@ def main_cvs_xu(num_cvs=10000, src_folder=None, sim_cv_folder=None,
         np.savetxt(sim_cv_folder + 'param_cvs.txt', cv_param_vals)
         if sim_cv_folder2 is not None:
             norm_vals_2 = cvs_sims_chandra_src(
-                num_cvs, nh_vals, temp_vals, lx_vals, ew_64_vals*0.5,
+                num_cvs, nh_vals/1.0E+22, temp_vals, lx_vals, ew_64_vals*0.5,
                 ew_67_vals*0.5, ew_70_vals*0.5, src_folder, sim_cv_folder2)
             cv_param_vals = np.column_stack([
                 nh_vals, temp_vals, lx_vals, ew_64_vals*0.5, ew_67_vals*0.5,
                 ew_70_vals*0.5, norm_vals_2[:, 0], norm_vals_2[:, 1],
                 norm_vals_2[:, 2]])
-            np.savetxt(sim_cv_folder + 'param_cvs.txt', cv_param_vals)
+            np.savetxt(sim_cv_folder2 + 'param_cvs.txt', cv_param_vals)
     
     return cv_param_vals
             
